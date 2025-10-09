@@ -1,0 +1,6 @@
+<!-- This is a placeholder favicon file. In a real project, you would use a proper .ico file -->
+<!-- For now, this serves as a placeholder to prevent 404 errors -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <rect width="16" height="16" fill="#1976d2"/>
+  <text x="8" y="12" font-family="Arial" font-size="10" fill="white" text-anchor="middle">M</text>
+</svg>
