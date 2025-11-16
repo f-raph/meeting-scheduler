@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   AppBar,
   Toolbar,
@@ -8,10 +8,10 @@ import {
   IconButton,
   Menu,
   MenuItem,
-} from '@mui/material';
-import { Link, useNavigate } from 'react-router-dom';
-import { AccountCircle } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+} from "@mui/material";
+import { Link, useNavigate } from "react-router-dom";
+import { AccountCircle } from "@mui/icons-material";
+import { useAuth } from "../../contexts/AuthContext";
 
 const Navbar: React.FC = () => {
   const { user, logout, isAuthenticated, isAdmin } = useAuth();
@@ -28,7 +28,7 @@ const Navbar: React.FC = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate("/");
     handleClose();
   };
 
@@ -36,12 +36,12 @@ const Navbar: React.FC = () => {
     <AppBar position="static">
       <Toolbar>
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }}>
+          <Link to="/" style={{ color: "inherit", textDecoration: "none" }}>
             Meeting Scheduler
           </Link>
         </Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
           {!isAuthenticated ? (
             <>
               <Button color="inherit" component={Link} to="/book">
@@ -50,10 +50,10 @@ const Navbar: React.FC = () => {
               <Button color="inherit" component={Link} to="/login">
                 Login
               </Button>
-              <Button 
-                variant="outlined" 
-                color="inherit" 
-                component={Link} 
+              <Button
+                variant="outlined"
+                color="inherit"
+                component={Link}
                 to="/register"
               >
                 Register
@@ -72,7 +72,7 @@ const Navbar: React.FC = () => {
                   Admin Dashboard
                 </Button>
               )}
-              
+
               <div>
                 <IconButton
                   size="large"
@@ -88,13 +88,13 @@ const Navbar: React.FC = () => {
                   id="menu-appbar"
                   anchorEl={anchorEl}
                   anchorOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right',
+                    vertical: "top",
+                    horizontal: "right",
                   }}
                   keepMounted
                   transformOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right',
+                    vertical: "top",
+                    horizontal: "right",
                   }}
                   open={Boolean(anchorEl)}
                   onClose={handleClose}
@@ -104,7 +104,24 @@ const Navbar: React.FC = () => {
                       {user?.firstName} {user?.lastName}
                     </Typography>
                   </MenuItem>
-                  <MenuItem onClick={handleClose}>Profile</MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      navigate("/profile");
+                      handleClose();
+                    }}
+                  >
+                    My Profile
+                  </MenuItem>
+                  {isAdmin && (
+                    <MenuItem
+                      onClick={() => {
+                        navigate("/admin/availability");
+                        handleClose();
+                      }}
+                    >
+                      Manage Availability
+                    </MenuItem>
+                  )}
                   <MenuItem onClick={handleLogout}>Logout</MenuItem>
                 </Menu>
               </div>

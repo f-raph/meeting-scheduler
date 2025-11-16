@@ -1,38 +1,25 @@
+```instructions
 # Meeting Scheduler - Copilot Instructions
-
-This is a full-stack meeting scheduler application with the following features:
-
-## Project Structure
-- **Backend**: Node.js/Express with MongoDB, Paystack payments, Google Calendar integration
-- **Frontend**: React/TypeScript with Material-UI, React Query, React Router
-
-## Key Implementation Details
-- JWT authentication with role-based access (admin/user)
-- Paystack payment integration (converted from Stripe)
-- Google Calendar API for event creation and Google Meet links
-- MongoDB models: User, Booking, Availability
-- Admin dashboard for managing bookings and clients
-- Responsive Material-UI design
-
-## Environment Requirements
-- MongoDB database connection
-- Google Calendar API credentials with service account
-- Paystack API keys (test/live)
-- JWT secret for authentication
-
-## Development Commands
-- Backend: `cd server && npm run dev`
-- Frontend: `cd client && npm start`
-- Frontend runs on port 3001, Backend on port 5000
-
-## Recent Changes
-- Migrated from Stripe to Paystack payment processing
-- Updated all payment flows to use Paystack's initialize/verify pattern
-- Frontend uses Paystack's redirect-based payment flow
-- Added payment callback page for verification
-
-## Important Notes
-- Admin users can manage availability and view all bookings
-- Payment verification happens via webhook integration
-- Google Calendar events are automatically created with Meet links
-- All payment amounts are in Nigerian Naira (NGN)
+- **Stack Overview**: Node/Express backend (`server/`) with MongoDB + Mongoose models and service-layer helpers; React + TypeScript frontend (`client/`) using Material UI, React Router v6, React Query, and a shared Axios instance with JWT headers.
+- **Runtime Assumptions**: Backend defaults to port 5000 and expects `CLIENT_URL` (frontend origin) for CORS and Paystack redirects; CRA frontend runs on port 3000 and forwards `/api` calls via `client/package.json` proxy.
+- **Auth Pattern**: JWTs issued from `/api/auth/login|register`, decoded in `client/src/contexts/AuthContext.tsx`, stored in `localStorage`, and injected into Axios via interceptors. The `auth` middleware (`server/middleware/auth.js`) reads `Authorization: Bearer <token>` and attaches `{ userId, role }` to requests.
+- **Booking Flow**: `BookingPage` creates a pending booking (`POST /api/bookings`) with duration validation and conflict checks, then launches `PaymentDialog` which calls `/api/payments/initialize-payment`; after Paystack redirect, `PaymentCallback.tsx` hits `/api/payments/verify-payment` to mark the booking `confirmed`, attach Google Calendar metadata, and expose `meetingLink`.
+- **Payments**: `server/services/payment.js` wraps the official Paystack SDK. Amounts are stored in naira but converted to kobo before API calls. Keep `MEETING_FEE` and booking `amount` aligned; refunds go through `processRefund`. Webhook route (`POST /api/payments/webhook`) must remain `express.raw` so do not add JSON middleware ahead of it.
+- **Calendar Integration**: `server/services/googleCalendar.js` handles OAuth2, slot generation, and Meet link creation. Slots merge recurring day-of-week availability with `specificDate` overrides while honoring stored break times and existing `pending|confirmed` bookings.
+- **Google OAuth Workflow**: Run `node server/scripts/getRefreshToken.js` with valid `GOOGLE_*` envs to capture a new `GOOGLE_REFRESH_TOKEN`; the helper opens the consent URL and listens on `http://localhost:5000/api/auth/google/callback` for the code exchange.
+- **Availability Management**: `server/routes/availability.js` exposes CRUD endpoints that the admin UI uses to manage `Availability` documents (day-of-week windows + optional break blocks). New UI pieces should reuse those REST shapes.
+- **Booking Guardrails**: `server/routes/bookings.js` enforces future-only meetings, 30–180 minute durations, and conflict detection against `pending|confirmed` bookings. Client code should surface backend error messages instead of duplicating business rules.
+- **Payment Lifecycle**: `Booking.paymentStatus` moves from `pending → paid → refunded/failed`; `status` shifts to `confirmed` after payment verification. Cancelling runs a refund if `paymentStatus === 'paid'` and attempts to delete the Google event.
+- **Frontend Data Flow**: `client/src/services/api.ts` centralizes REST calls with Axios interceptors for JWT headers and 401 handling. React Query mutations (see `PaymentDialog.tsx`) drive writes; cache keys typically mirror endpoint paths.
+- **Routing & Guards**: Protect admin pages with `components/Auth/ProtectedRoute.tsx`, which reads `useAuth().isAdmin`. Update that guard when introducing new roles or routes needing restricted access.
+- **State & Forms**: Forms lean on React Hook Form + Yup (`client/src/pages/Register.tsx`). Match this stack when adding complex validation to keep error handling consistent.
+- **Environment Checklist**: Set `MONGODB_URI`, `JWT_SECRET`, Paystack keys, `CLIENT_URL`, `MEETING_FEE`, and Google OAuth creds (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_REFRESH_TOKEN`). Align Paystack webhook secrets with `PAYSTACK_SECRET_KEY`.
+- **Dev Commands**: `cd server && npm run dev` starts nodemon with morgan logging; `cd client && npm start` boots CRA. Ensure MongoDB is reachable before hitting any protected routes.
+- **Local Debug Tips**: `GET /api/health` validates backend startup. Payment and calendar helpers log detailed errors with `console.error`; expect only user-facing, generic messages in JSON responses.
+- **Testing Status**: No automated tests. For regressions, add manual checks via REST clients or temporary React Query devtools panels.
+- **Coding Conventions**: Backend sticks to async/await, wraps third-party errors, and keeps user messages generic. Frontend prefers functional components, hooks, and Material UI primitives; add comments only before non-trivial logic blocks.
+- **Common Pitfalls**: `Booking.currency` defaults to `usd`; adjust or normalize when introducing reporting features. Remember that Express' JSON parser runs before routers—mount any new raw-body endpoints with `express.raw` at the route level.
+- **Deployment Notes**: Production requires HTTPS origins for Paystack callbacks. Update `CLIENT_URL` and CORS config together and ensure the frontend uses the same base URL as the backend `callback_url`.
+- **Data Cleanup**: Cancelling bookings within 24h is blocked; heed that constraint when writing admin overrides. Webhook retries can arrive after manual verification, so keep payment updates idempotent.
+- **Formatting Utilities**: `client/src/utils/dateTime.ts` centralizes date/time rendering and currency helpers; extend those functions instead of sprinkling new formatting logic across components.
+```

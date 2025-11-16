@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from "react";
 import {
   Container,
   Typography,
@@ -17,16 +17,40 @@ import {
   Button,
   Tabs,
   Tab,
-} from '@mui/material';
-import { useQuery } from 'react-query';
-import { format } from 'date-fns';
-import { 
-  People, 
-  Event, 
-  AttachMoney, 
-  TrendingUp 
-} from '@mui/icons-material';
-import { adminApi } from '../services/api';
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress,
+  Alert,
+  Divider,
+  TextField,
+  MenuItem,
+} from "@mui/material";
+import {
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { useQuery } from "react-query";
+import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
+import {
+  People,
+  Event,
+  AttachMoney,
+  TrendingUp,
+  Download,
+  Search,
+} from "@mui/icons-material";
+import { adminApi } from "../services/api";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -36,7 +60,6 @@ interface TabPanelProps {
 
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
-
   return (
     <div
       role="tabpanel"
@@ -50,50 +73,176 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+const COLORS = ["#1976d2", "#388e3c", "#f57c00", "#d32f2f", "#7b1fa2"];
+
 const AdminDashboard: React.FC = () => {
-  const [tabValue, setTabValue] = React.useState(0);
+  const [tabValue, setTabValue] = useState(0);
+  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [clientModalOpen, setClientModalOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFromFilter, setDateFromFilter] = useState("");
+  const [dateToFilter, setDateToFilter] = useState("");
+  const navigate = useNavigate();
 
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery(
-    ['admin-dashboard'],
+    ["admin-dashboard"],
     () => adminApi.getDashboard()
   );
-
-  const { data: bookingsData, isLoading: bookingsLoading } = useQuery(
-    ['admin-bookings'],
-    () => adminApi.getAllBookings({ limit: 10 })
+  const { data: bookingsData } = useQuery(["admin-bookings"], () =>
+    adminApi.getAllBookings({ limit: 100 })
+  );
+  const { data: clientsData } = useQuery(["admin-clients"], () =>
+    adminApi.getAllClients({ limit: 100 })
+  );
+  const { data: clientDetailsData, isLoading: clientDetailsLoading } = useQuery(
+    ["admin-client-details", selectedClient?._id],
+    () => adminApi.getClient(selectedClient._id),
+    { enabled: !!selectedClient }
   );
 
-  const { data: clientsData, isLoading: clientsLoading } = useQuery(
-    ['admin-clients'],
-    () => adminApi.getAllClients({ limit: 10 })
-  );
+  const filteredBookings = useMemo(() => {
+    let filtered = bookingsData?.data?.bookings || [];
+    if (statusFilter)
+      filtered = filtered.filter((b: any) => b.status === statusFilter);
+    if (paymentFilter)
+      filtered = filtered.filter((b: any) => b.paymentStatus === paymentFilter);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (b: any) =>
+          b.client.firstName.toLowerCase().includes(q) ||
+          b.client.lastName.toLowerCase().includes(q) ||
+          b.client.email.toLowerCase().includes(q)
+      );
+    }
+    if (dateFromFilter) {
+      const fromDate = new Date(dateFromFilter);
+      filtered = filtered.filter((b: any) => new Date(b.startTime) >= fromDate);
+    }
+    if (dateToFilter) {
+      const toDate = new Date(dateToFilter);
+      toDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter((b: any) => new Date(b.startTime) <= toDate);
+    }
+    return filtered;
+  }, [
+    bookingsData,
+    statusFilter,
+    paymentFilter,
+    searchQuery,
+    dateFromFilter,
+    dateToFilter,
+  ]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const bookingsByType = useMemo(() => {
+    const types = bookingsData?.data?.bookings || [];
+    const grouped: { [key: string]: number } = {};
+    types.forEach((b: any) => {
+      grouped[b.meetingType] = (grouped[b.meetingType] || 0) + 1;
+    });
+    return Object.entries(grouped).map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " "),
+      value,
+    }));
+  }, [bookingsData]);
+
+  const revenueByType = useMemo(() => {
+    const types = bookingsData?.data?.bookings || [];
+    const grouped: { [key: string]: number } = {};
+    types.forEach((b: any) => {
+      if (b.paymentStatus === "paid")
+        grouped[b.meetingType] = (grouped[b.meetingType] || 0) + b.amount;
+    });
+    return Object.entries(grouped).map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " "),
+      value: parseFloat(value.toFixed(2)),
+    }));
+  }, [bookingsData]);
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) =>
     setTabValue(newValue);
+  const handleViewClient = (client: any) => {
+    setSelectedClient(client);
+    setClientModalOpen(true);
+  };
+  const handleCloseClientModal = () => {
+    setClientModalOpen(false);
+    setSelectedClient(null);
+  };
+
+  const handleExportBookings = () => {
+    if (!filteredBookings || filteredBookings.length === 0) {
+      alert("No bookings to export");
+      return;
+    }
+    const headers = [
+      "Client Name",
+      "Email",
+      "Phone",
+      "Date",
+      "Time",
+      "Type",
+      "Status",
+      "Payment Status",
+      "Amount",
+    ];
+    const rows = filteredBookings.map((booking: any) => [
+      `${booking.client.firstName} ${booking.client.lastName}`,
+      booking.client.email,
+      booking.client.phone || "-",
+      format(new Date(booking.startTime), "MMM d, yyyy"),
+      format(new Date(booking.startTime), "h:mm a"),
+      booking.meetingType,
+      booking.status,
+      booking.paymentStatus,
+      booking.amount,
+    ]);
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row: any) => row.map((cell: any) => `"${cell}"`).join(",")),
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bookings-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const resetFilters = () => {
+    setStatusFilter("");
+    setPaymentFilter("");
+    setSearchQuery("");
+    setDateFromFilter("");
+    setDateToFilter("");
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed':
-        return 'success';
-      case 'pending':
-        return 'warning';
-      case 'cancelled':
-        return 'error';
-      case 'completed':
-        return 'info';
+      case "confirmed":
+        return "success";
+      case "pending":
+        return "warning";
+      case "cancelled":
+        return "error";
+      case "completed":
+        return "info";
       default:
-        return 'default';
+        return "default";
     }
   };
 
-  if (dashboardLoading) {
+  if (dashboardLoading)
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Typography>Loading dashboard...</Typography>
       </Container>
     );
-  }
 
   const stats = dashboardData?.data?.statistics || {};
   const upcomingBookings = dashboardData?.data?.upcomingBookings || [];
@@ -106,13 +255,11 @@ const AdminDashboard: React.FC = () => {
       <Typography variant="h3" component="h1" gutterBottom>
         Admin Dashboard
       </Typography>
-
-      {/* Statistics Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent sx={{ display: 'flex', alignItems: 'center' }}>
-              <People sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+            <CardContent sx={{ display: "flex", alignItems: "center" }}>
+              <People sx={{ fontSize: 40, color: "primary.main", mr: 2 }} />
               <Box>
                 <Typography variant="h4">{stats.totalClients || 0}</Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -122,11 +269,10 @@ const AdminDashboard: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent sx={{ display: 'flex', alignItems: 'center' }}>
-              <Event sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+            <CardContent sx={{ display: "flex", alignItems: "center" }}>
+              <Event sx={{ fontSize: 40, color: "primary.main", mr: 2 }} />
               <Box>
                 <Typography variant="h4">{stats.totalBookings || 0}</Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -136,13 +282,16 @@ const AdminDashboard: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent sx={{ display: 'flex', alignItems: 'center' }}>
-              <AttachMoney sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+            <CardContent sx={{ display: "flex", alignItems: "center" }}>
+              <AttachMoney
+                sx={{ fontSize: 40, color: "primary.main", mr: 2 }}
+              />
               <Box>
-                <Typography variant="h4">${stats.monthlyRevenue || 0}</Typography>
+                <Typography variant="h4">
+                  ${stats.monthlyRevenue || 0}
+                </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Monthly Revenue
                 </Typography>
@@ -150,13 +299,14 @@ const AdminDashboard: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent sx={{ display: 'flex', alignItems: 'center' }}>
-              <TrendingUp sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+            <CardContent sx={{ display: "flex", alignItems: "center" }}>
+              <TrendingUp sx={{ fontSize: 40, color: "primary.main", mr: 2 }} />
               <Box>
-                <Typography variant="h4">{stats.monthlyBookings || 0}</Typography>
+                <Typography variant="h4">
+                  {stats.monthlyBookings || 0}
+                </Typography>
                 <Typography variant="body2" color="text.secondary">
                   This Month
                 </Typography>
@@ -165,11 +315,9 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
-
-      {/* Navigation Tabs */}
       <Paper sx={{ mb: 3 }}>
-        <Tabs 
-          value={tabValue} 
+        <Tabs
+          value={tabValue}
           onChange={handleTabChange}
           indicatorColor="primary"
           textColor="primary"
@@ -181,11 +329,8 @@ const AdminDashboard: React.FC = () => {
           <Tab label="Analytics" />
         </Tabs>
       </Paper>
-
-      {/* Overview Tab */}
       <TabPanel value={tabValue} index={0}>
         <Grid container spacing={3}>
-          {/* Upcoming Bookings */}
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" gutterBottom>
@@ -197,15 +342,21 @@ const AdminDashboard: React.FC = () => {
                 </Typography>
               ) : (
                 upcomingBookings.slice(0, 5).map((booking: any) => (
-                  <Box key={booking._id} sx={{ mb: 2, pb: 2, borderBottom: '1px solid #eee' }}>
+                  <Box
+                    key={booking._id}
+                    sx={{ mb: 2, pb: 2, borderBottom: "1px solid #eee" }}
+                  >
                     <Typography variant="body1" fontWeight="medium">
                       {booking.client.firstName} {booking.client.lastName}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {format(new Date(booking.startTime), 'MMM d, yyyy h:mm a')}
+                      {format(
+                        new Date(booking.startTime),
+                        "MMM d, yyyy h:mm a"
+                      )}
                     </Typography>
-                    <Chip 
-                      label={booking.status} 
+                    <Chip
+                      label={booking.status}
                       color={getStatusColor(booking.status) as any}
                       size="small"
                     />
@@ -214,8 +365,6 @@ const AdminDashboard: React.FC = () => {
               )}
             </Paper>
           </Grid>
-
-          {/* Recent Activity */}
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" gutterBottom>
@@ -227,15 +376,19 @@ const AdminDashboard: React.FC = () => {
                 </Typography>
               ) : (
                 recentBookings.slice(0, 5).map((booking: any) => (
-                  <Box key={booking._id} sx={{ mb: 2, pb: 2, borderBottom: '1px solid #eee' }}>
+                  <Box
+                    key={booking._id}
+                    sx={{ mb: 2, pb: 2, borderBottom: "1px solid #eee" }}
+                  >
                     <Typography variant="body1" fontWeight="medium">
                       {booking.client.firstName} {booking.client.lastName}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {format(new Date(booking.createdAt), 'MMM d, yyyy')} - ${booking.amount}
+                      {format(new Date(booking.createdAt), "MMM d, yyyy")} - $
+                      {booking.amount}
                     </Typography>
-                    <Chip 
-                      label={booking.status} 
+                    <Chip
+                      label={booking.status}
                       color={getStatusColor(booking.status) as any}
                       size="small"
                     />
@@ -246,9 +399,103 @@ const AdminDashboard: React.FC = () => {
           </Grid>
         </Grid>
       </TabPanel>
-
-      {/* Bookings Tab */}
       <TabPanel value={tabValue} index={1}>
+        <Paper sx={{ mb: 3, p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Filters & Search
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Search sx={{ mr: 1, color: "text.secondary" }} />
+                  ),
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                select
+                size="small"
+                label="Status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="confirmed">Confirmed</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="cancelled">Cancelled</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                select
+                size="small"
+                label="Payment"
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value)}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="paid">Paid</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="failed">Failed</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                type="date"
+                size="small"
+                label="From"
+                value={dateFromFilter}
+                onChange={(e) => setDateFromFilter(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                type="date"
+                size="small"
+                label="To"
+                value={dateToFilter}
+                onChange={(e) => setDateToFilter(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={resetFilters}
+                fullWidth
+              >
+                Reset
+              </Button>
+            </Grid>
+          </Grid>
+          <Box sx={{ mt: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Showing {filteredBookings.length} of {allBookings.length}
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Download />}
+              onClick={handleExportBookings}
+              size="small"
+            >
+              Export CSV
+            </Button>
+          </Box>
+        </Paper>
         <Paper>
           <TableContainer>
             <Table>
@@ -264,32 +511,40 @@ const AdminDashboard: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {allBookings.map((booking: any) => (
+                {filteredBookings.map((booking: any) => (
                   <TableRow key={booking._id}>
                     <TableCell>
                       {booking.client.firstName} {booking.client.lastName}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(booking.startTime), 'MMM d, yyyy h:mm a')}
+                      {format(
+                        new Date(booking.startTime),
+                        "MMM d, yyyy h:mm a"
+                      )}
                     </TableCell>
                     <TableCell>{booking.meetingType}</TableCell>
                     <TableCell>
-                      <Chip 
-                        label={booking.status} 
+                      <Chip
+                        label={booking.status}
                         color={getStatusColor(booking.status) as any}
                         size="small"
                       />
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        label={booking.paymentStatus} 
+                      <Chip
+                        label={booking.paymentStatus}
                         size="small"
                         variant="outlined"
                       />
                     </TableCell>
                     <TableCell>${booking.amount}</TableCell>
                     <TableCell>
-                      <Button size="small">View</Button>
+                      <Button
+                        size="small"
+                        onClick={() => navigate(`/bookings/${booking._id}`)}
+                      >
+                        View
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -298,8 +553,6 @@ const AdminDashboard: React.FC = () => {
           </TableContainer>
         </Paper>
       </TabPanel>
-
-      {/* Clients Tab */}
       <TabPanel value={tabValue} index={2}>
         <Paper>
           <TableContainer>
@@ -321,11 +574,16 @@ const AdminDashboard: React.FC = () => {
                       {client.firstName} {client.lastName}
                     </TableCell>
                     <TableCell>{client.email}</TableCell>
-                    <TableCell>{client.phone || '-'}</TableCell>
+                    <TableCell>{client.phone || "-"}</TableCell>
                     <TableCell>{client.bookingCount || 0}</TableCell>
                     <TableCell>${client.totalSpent || 0}</TableCell>
                     <TableCell>
-                      <Button size="small">View</Button>
+                      <Button
+                        size="small"
+                        onClick={() => handleViewClient(client)}
+                      >
+                        View
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -334,22 +592,214 @@ const AdminDashboard: React.FC = () => {
           </TableContainer>
         </Paper>
       </TabPanel>
-
-      {/* Analytics Tab */}
       <TabPanel value={tabValue} index={3}>
         <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Bookings by Type
+              </Typography>
+              {bookingsByType.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={bookingsByType}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value }) => `${name}: ${value}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {bookingsByType.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <Typography color="text.secondary">No data</Typography>
+              )}
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Revenue by Type
+              </Typography>
+              {revenueByType.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={revenueByType}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                    />
+                    <YAxis />
+                    <Tooltip formatter={(value) => `$${value}`} />
+                    <Bar dataKey="value" fill="#1976d2" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <Typography color="text.secondary">No data</Typography>
+              )}
+            </Paper>
+          </Grid>
           <Grid item xs={12}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" gutterBottom>
-                Revenue Analytics
+                Analytics Summary
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Analytics charts would be implemented here with a charting library like Chart.js or Recharts
-              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Bookings
+                    </Typography>
+                    <Typography variant="h5">{allBookings.length}</Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Confirmed
+                    </Typography>
+                    <Typography variant="h5">
+                      {
+                        allBookings.filter((b: any) => b.status === "confirmed")
+                          .length
+                      }
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Revenue
+                    </Typography>
+                    <Typography variant="h5">
+                      $
+                      {allBookings
+                        .filter((b: any) => b.paymentStatus === "paid")
+                        .reduce((sum: number, b: any) => sum + b.amount, 0)
+                        .toFixed(2)}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Avg Value
+                    </Typography>
+                    <Typography variant="h5">
+                      $
+                      {allBookings.length > 0
+                        ? (
+                            allBookings.reduce(
+                              (sum: number, b: any) => sum + b.amount,
+                              0
+                            ) / allBookings.length
+                          ).toFixed(2)
+                        : "0.00"}
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
             </Paper>
           </Grid>
         </Grid>
       </TabPanel>
+      <Dialog
+        open={clientModalOpen}
+        onClose={handleCloseClientModal}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Client Profile
+          <Button
+            onClick={handleCloseClientModal}
+            sx={{ minWidth: "auto", p: 1 }}
+          >
+            ✕
+          </Button>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {clientDetailsLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : clientDetailsData?.data?.client ? (
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                {clientDetailsData.data.client.firstName}{" "}
+                {clientDetailsData.data.client.lastName}
+              </Typography>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Email
+                </Typography>
+                <Typography variant="body1">
+                  {clientDetailsData.data.client.email}
+                </Typography>
+              </Box>
+              {clientDetailsData.data.client.phone && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Phone
+                  </Typography>
+                  <Typography variant="body1">
+                    {clientDetailsData.data.client.phone}
+                  </Typography>
+                </Box>
+              )}
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Total Bookings
+                </Typography>
+                <Typography variant="h6">
+                  {clientDetailsData.data.client.bookingCount || 0}
+                </Typography>
+              </Box>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Total Spent
+                </Typography>
+                <Typography variant="h6">
+                  ${clientDetailsData.data.client.totalSpent || 0}
+                </Typography>
+              </Box>
+              {clientDetailsData.data.client.joinedAt && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Member Since
+                  </Typography>
+                  <Typography variant="body1">
+                    {format(
+                      new Date(clientDetailsData.data.client.joinedAt),
+                      "MMM d, yyyy"
+                    )}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Alert severity="error">Failed to load client</Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseClientModal}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
