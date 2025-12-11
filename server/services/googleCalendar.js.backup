@@ -1,93 +1,36 @@
 const { google } = require("googleapis");
 const Availability = require("../models/Availability");
 const Booking = require("../models/Booking");
-const User = require("../models/User");
 
 class GoogleCalendarService {
   constructor() {
-    // Keep global OAuth client for backward compatibility / fallback
-    this.globalOAuth2Client = new google.auth.OAuth2(
+    this.oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
       process.env.GOOGLE_REDIRECT_URI
     );
 
+    // Set credentials if refresh token is available
     if (process.env.GOOGLE_REFRESH_TOKEN) {
-      this.globalOAuth2Client.setCredentials({
+      this.oauth2Client.setCredentials({
         refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
       });
     }
+
+    this.calendar = google.calendar({ version: "v3", auth: this.oauth2Client });
   }
 
-  /**
-   * Get OAuth2 client for a specific admin
-   * @param {string} adminId - The admin's user ID
-   * @returns {Object} OAuth2 client configured for this admin
-   */
-  async getAdminOAuthClient(adminId) {
+  // IN: services/googleCalendar.js
+  // REPLACE the ENTIRE 'getAvailableSlots' function with this:
+
+  async getAvailableSlots(date, duration = 60) {
     try {
-      const admin = await User.findById(adminId).select(
-        "+googleCalendar.accessToken +googleCalendar.refreshToken"
-      );
-
-      if (!admin || admin.role !== "admin") {
-        throw new Error("Admin not found");
-      }
-
-      if (
-        !admin.googleCalendar?.connected ||
-        !admin.googleCalendar?.refreshToken
-      ) {
-        // Return null if admin hasn't connected calendar
-        return null;
-      }
-
-      const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_REDIRECT_URI
-      );
-
-      oauth2Client.setCredentials({
-        access_token: admin.googleCalendar.accessToken,
-        refresh_token: admin.googleCalendar.refreshToken,
-        expiry_date: admin.googleCalendar.tokenExpiry?.getTime(),
-      });
-
-      // Auto-refresh token handler
-      oauth2Client.on("tokens", async (tokens) => {
-        if (tokens.refresh_token) {
-          admin.googleCalendar.refreshToken = tokens.refresh_token;
-        }
-        if (tokens.access_token) {
-          admin.googleCalendar.accessToken = tokens.access_token;
-        }
-        if (tokens.expiry_date) {
-          admin.googleCalendar.tokenExpiry = new Date(tokens.expiry_date);
-        }
-        await admin.save();
-      });
-
-      return oauth2Client;
-    } catch (error) {
-      console.error("Get admin OAuth client error:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Get available slots for a specific admin
-   * @param {string} date - The date to check
-   * @param {number} duration - Meeting duration in minutes
-   * @param {string} adminId - The admin's user ID
-   */
-  async getAvailableSlots(date, duration = 60, adminId = null) {
-    try {
+      // Force local date parsing
       const targetDate = new Date(date + "T00:00:00");
       const dayOfWeek = targetDate.getDay();
 
-      // Build query for availability
-      const availabilityQuery = {
+      // --- Step 1: Get Master Rules (from your app's database) ---
+      const availability = await Availability.find({
         $or: [
           { dayOfWeek, isActive: true, specificDate: null },
           {
@@ -98,72 +41,53 @@ class GoogleCalendarService {
             isActive: true,
           },
         ],
-      };
-
-      // Add tenant filter if adminId provided
-      if (adminId) {
-        availabilityQuery.ownerAdmin = adminId;
-      }
-
-      const availability = await Availability.find(availabilityQuery);
+      });
 
       if (!availability.length) {
         return [];
       }
 
-      // Get existing bookings for this date and admin
+      // --- Step 2: Get App's Existing Bookings (from your app's database) ---
       const bookingsStartTime = new Date(targetDate).setHours(0, 0, 0, 0);
       const bookingsEndTime = new Date(targetDate).setHours(23, 59, 59, 999);
 
-      const bookingQuery = {
+      const existingBookings = await Booking.find({
         startTime: {
           $gte: bookingsStartTime,
           $lt: bookingsEndTime,
         },
         status: { $in: ["confirmed", "pending"] },
-      };
+      });
 
-      if (adminId) {
-        bookingQuery.ownerAdmin = adminId;
-      }
-
-      const existingBookings = await Booking.find(bookingQuery);
-
-      // Get Google Calendar busy times if admin has connected calendar
+      // --- Step 3: Get Google Calendar Busy Times (if configured) ---
+      const timeMin = new Date(targetDate).setHours(0, 0, 0, 0);
+      const timeMax = new Date(targetDate).setHours(23, 59, 59, 999);
       let googleBusyTimes = [];
 
-      if (adminId) {
-        const oauth2Client = await this.getAdminOAuthClient(adminId);
-
-        if (oauth2Client) {
-          try {
-            const calendar = google.calendar({
-              version: "v3",
-              auth: oauth2Client,
-            });
-            const timeMin = new Date(targetDate).setHours(0, 0, 0, 0);
-            const timeMax = new Date(targetDate).setHours(23, 59, 59, 999);
-
-            const freeBusyResponse = await calendar.freebusy.query({
-              resource: {
-                timeMin: new Date(timeMin).toISOString(),
-                timeMax: new Date(timeMax).toISOString(),
-                items: [{ id: "primary" }],
-              },
-            });
-            googleBusyTimes =
-              freeBusyResponse.data.calendars.primary.busy || [];
-          } catch (fbError) {
-            console.error(
-              "Failed to fetch Google Calendar free/busy times:",
-              fbError
-            );
-            googleBusyTimes = [];
-          }
+      if (this.oauth2Client.credentials?.refresh_token) {
+        try {
+          const freeBusyResponse = await this.calendar.freebusy.query({
+            resource: {
+              timeMin: new Date(timeMin).toISOString(),
+              timeMax: new Date(timeMax).toISOString(),
+              items: [{ id: "primary" }],
+            },
+          });
+          googleBusyTimes = freeBusyResponse.data.calendars.primary.busy || [];
+        } catch (fbError) {
+          console.error(
+            "Failed to fetch Google Calendar free/busy times:",
+            fbError
+          );
+          // Continue without google busy times
+          googleBusyTimes = [];
         }
+      } else {
+        // Not configured - skip Google busy checks
+        googleBusyTimes = [];
       }
 
-      // Generate available slots
+      // --- Step 4: Calculate Final Slots (combine app bookings + google busy times) ---
       const availableSlots = [];
 
       for (const slot of availability) {
@@ -446,57 +370,19 @@ class GoogleCalendarService {
     return slots;
   }
 
-  /**
-   * Create calendar event for a specific admin
-   * @param {Object} eventData - Event details
-   * @param {string} adminId - Admin's user ID
-   */
-  async createEvent(eventData, adminId = null) {
-    const {
-      startTime,
-      endTime,
-      title,
-      description,
-      attendeeEmail,
-      clientName,
-      meetingType,
-    } = eventData;
-
+  async createEvent({
+    startTime,
+    endTime,
+    title,
+    description,
+    attendeeEmail,
+    clientName,
+    meetingType,
+  }) {
     try {
-      let oauth2Client;
-      let adminEmail = process.env.ADMIN_EMAIL;
-
-      // Try to use admin-specific credentials
-      if (adminId) {
-        oauth2Client = await this.getAdminOAuthClient(adminId);
-        const admin = await User.findById(adminId);
-        if (admin) {
-          adminEmail = admin.email;
-        }
-      }
-
-      // Fallback to global credentials if admin hasn't connected
-      if (!oauth2Client) {
-        // Check if global credentials are configured
-        if (!process.env.GOOGLE_REFRESH_TOKEN) {
-          console.warn(
-            "Google Calendar not configured - no admin OAuth and no global refresh token"
-          );
-          return null; // Return null instead of throwing
-        }
-        oauth2Client = this.globalOAuth2Client;
-        console.warn(
-          "Using global OAuth credentials for calendar event creation"
-        );
-      }
-
-      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+      // Create Google Meet link
       const meetingId = this.generateMeetingId();
       const meetLink = `https://meet.google.com/${meetingId}`;
-
-      // Ensure dates are Date objects
-      const start = startTime instanceof Date ? startTime : new Date(startTime);
-      const end = endTime instanceof Date ? endTime : new Date(endTime);
 
       const event = {
         summary: title,
@@ -510,14 +396,17 @@ Meeting Link: ${meetLink}
 Please join the meeting using the link above.
         `.trim(),
         start: {
-          dateTime: start.toISOString(),
+          dateTime: startTime.toISOString(),
           timeZone: "UTC",
         },
         end: {
-          dateTime: end.toISOString(),
+          dateTime: endTime.toISOString(),
           timeZone: "UTC",
         },
-        attendees: [{ email: attendeeEmail }, { email: adminEmail }],
+        attendees: [
+          { email: attendeeEmail },
+          { email: process.env.ADMIN_EMAIL },
+        ],
         conferenceData: {
           createRequest: {
             requestId: meetingId,
@@ -529,14 +418,14 @@ Please join the meeting using the link above.
         reminders: {
           useDefault: false,
           overrides: [
-            { method: "email", minutes: 24 * 60 },
-            { method: "email", minutes: 60 },
-            { method: "popup", minutes: 15 },
+            { method: "email", minutes: 24 * 60 }, // 24 hours before
+            { method: "email", minutes: 60 }, // 1 hour before
+            { method: "popup", minutes: 15 }, // 15 minutes before
           ],
         },
       };
 
-      const response = await calendar.events.insert({
+      const response = await this.calendar.events.insert({
         calendarId: "primary",
         resource: event,
         conferenceDataVersion: 1,
@@ -555,24 +444,9 @@ Please join the meeting using the link above.
     }
   }
 
-  /**
-   * Cancel calendar event for a specific admin
-   */
-  async cancelEvent(eventId, adminId = null) {
+  async cancelEvent(eventId) {
     try {
-      let oauth2Client;
-
-      if (adminId) {
-        oauth2Client = await this.getAdminOAuthClient(adminId);
-      }
-
-      if (!oauth2Client) {
-        oauth2Client = this.globalOAuth2Client;
-      }
-
-      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-
-      await calendar.events.delete({
+      await this.calendar.events.delete({
         calendarId: "primary",
         eventId: eventId,
         sendNotifications: true,
@@ -585,21 +459,9 @@ Please join the meeting using the link above.
     }
   }
 
-  async updateEvent(eventId, updates, adminId = null) {
+  async updateEvent(eventId, updates) {
     try {
-      let oauth2Client;
-
-      if (adminId) {
-        oauth2Client = await this.getAdminOAuthClient(adminId);
-      }
-
-      if (!oauth2Client) {
-        oauth2Client = this.globalOAuth2Client;
-      }
-
-      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-
-      const response = await calendar.events.patch({
+      const response = await this.calendar.events.patch({
         calendarId: "primary",
         eventId: eventId,
         resource: updates,

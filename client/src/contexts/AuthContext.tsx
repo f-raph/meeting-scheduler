@@ -1,13 +1,20 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import jwtDecode from 'jwt-decode';
-import { api } from '../services/api';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import jwtDecode from "jwt-decode";
+import { api } from "../services/api";
 
 interface User {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'client';
+  role: "admin" | "client";
+  slug?: string;
 }
 
 interface AuthContextType {
@@ -39,7 +46,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -51,28 +58,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initAuth = () => {
-      const savedToken = localStorage.getItem('token');
+      const savedToken = localStorage.getItem("token");
       if (savedToken) {
         try {
           const decoded: any = jwtDecode(savedToken);
-          
+
           // Check if token is expired
           if (decoded.exp * 1000 > Date.now()) {
             setToken(savedToken);
             setUser({
               id: decoded.userId,
               email: decoded.email,
-              firstName: decoded.firstName || '',
-              lastName: decoded.lastName || '',
-              role: decoded.role
+              firstName: decoded.firstName || "",
+              lastName: decoded.lastName || "",
+              role: decoded.role,
             });
-            api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
+            api.defaults.headers.common[
+              "Authorization"
+            ] = `Bearer ${savedToken}`;
           } else {
-            localStorage.removeItem('token');
+            localStorage.removeItem("token");
           }
         } catch (error) {
-          console.error('Invalid token:', error);
-          localStorage.removeItem('token');
+          console.error("Invalid token:", error);
+          localStorage.removeItem("token");
         }
       }
       setIsLoading(false);
@@ -83,41 +92,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post("/auth/login", { email, password });
       const { token: newToken, user: userData } = response.data;
 
       setToken(newToken);
       setUser(userData);
-      localStorage.setItem('token', newToken);
-      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      localStorage.setItem("token", newToken);
+      api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Login failed');
+      throw new Error(error.response?.data?.error || "Login failed");
     }
   };
 
   const register = async (userData: RegisterData) => {
     try {
-      const response = await api.post('/auth/register', userData);
+      const response = await api.post("/auth/register", userData);
       const { token: newToken, user: newUser } = response.data;
 
       setToken(newToken);
       setUser(newUser);
-      localStorage.setItem('token', newToken);
-      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      localStorage.setItem("token", newToken);
+      api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Registration failed');
+      throw new Error(error.response?.data?.error || "Registration failed");
     }
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('token');
-    delete api.defaults.headers.common['Authorization'];
+    localStorage.removeItem("token");
+    delete api.defaults.headers.common["Authorization"];
   };
 
   const isAuthenticated = !!user && !!token;
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === "admin";
 
   const value: AuthContextType = {
     user,
@@ -127,7 +136,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     isLoading,
     isAuthenticated,
-    isAdmin
+    isAdmin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

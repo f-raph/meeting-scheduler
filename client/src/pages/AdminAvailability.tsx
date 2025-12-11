@@ -264,7 +264,11 @@ const AdminAvailability: React.FC = () => {
                   {groupedByDay[index].map((slot: any) => (
                     <Box
                       key={slot._id}
-                      sx={{ mb: 1, pb: 1, borderBottom: "1px solid #eee" }}
+                      sx={{
+                        mb: 1,
+                        pb: 1,
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                      }}
                     >
                       <Typography variant="body2">
                         <strong>

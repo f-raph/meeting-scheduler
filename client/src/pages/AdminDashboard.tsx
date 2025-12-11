@@ -17,13 +17,6 @@ import {
   Button,
   Tabs,
   Tab,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  CircularProgress,
-  Alert,
-  Divider,
   TextField,
   MenuItem,
 } from "@mui/material";
@@ -51,6 +44,7 @@ import {
   Search,
 } from "@mui/icons-material";
 import { adminApi } from "../services/api";
+import { useWithSlug } from "../hooks/useTenantSlug";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -73,18 +67,18 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-const COLORS = ["#1976d2", "#388e3c", "#f57c00", "#d32f2f", "#7b1fa2"];
+const COLORS = ["#19c1ff", "#f5c242", "#7ce3ff", "#0f9ad8", "#7dd3fc"];
 
 const AdminDashboard: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
-  const [selectedClient, setSelectedClient] = useState<any>(null);
-  const [clientModalOpen, setClientModalOpen] = useState(false);
+  // Removed client modal state - no longer tracking individual clients
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
   const [dateToFilter, setDateToFilter] = useState("");
   const navigate = useNavigate();
+  const withSlug = useWithSlug();
 
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery(
     ["admin-dashboard"],
@@ -95,11 +89,6 @@ const AdminDashboard: React.FC = () => {
   );
   const { data: clientsData } = useQuery(["admin-clients"], () =>
     adminApi.getAllClients({ limit: 100 })
-  );
-  const { data: clientDetailsData, isLoading: clientDetailsLoading } = useQuery(
-    ["admin-client-details", selectedClient?._id],
-    () => adminApi.getClient(selectedClient._id),
-    { enabled: !!selectedClient }
   );
 
   const filteredBookings = useMemo(() => {
@@ -112,9 +101,8 @@ const AdminDashboard: React.FC = () => {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (b: any) =>
-          b.client.firstName.toLowerCase().includes(q) ||
-          b.client.lastName.toLowerCase().includes(q) ||
-          b.client.email.toLowerCase().includes(q)
+          b.clientName?.toLowerCase().includes(q) ||
+          b.clientEmail?.toLowerCase().includes(q)
       );
     }
     if (dateFromFilter) {
@@ -163,14 +151,7 @@ const AdminDashboard: React.FC = () => {
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) =>
     setTabValue(newValue);
-  const handleViewClient = (client: any) => {
-    setSelectedClient(client);
-    setClientModalOpen(true);
-  };
-  const handleCloseClientModal = () => {
-    setClientModalOpen(false);
-    setSelectedClient(null);
-  };
+  // Removed client modal handlers - no longer tracking individual clients
 
   const handleExportBookings = () => {
     if (!filteredBookings || filteredBookings.length === 0) {
@@ -189,9 +170,9 @@ const AdminDashboard: React.FC = () => {
       "Amount",
     ];
     const rows = filteredBookings.map((booking: any) => [
-      `${booking.client.firstName} ${booking.client.lastName}`,
-      booking.client.email,
-      booking.client.phone || "-",
+      booking.clientName || "-",
+      booking.clientEmail || "-",
+      booking.clientPhone || "-",
       format(new Date(booking.startTime), "MMM d, yyyy"),
       format(new Date(booking.startTime), "h:mm a"),
       booking.meetingType,
@@ -263,7 +244,7 @@ const AdminDashboard: React.FC = () => {
               <Box>
                 <Typography variant="h4">{stats.totalClients || 0}</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Total Clients
+                  Unique Clients
                 </Typography>
               </Box>
             </CardContent>
@@ -344,10 +325,14 @@ const AdminDashboard: React.FC = () => {
                 upcomingBookings.slice(0, 5).map((booking: any) => (
                   <Box
                     key={booking._id}
-                    sx={{ mb: 2, pb: 2, borderBottom: "1px solid #eee" }}
+                    sx={{
+                      mb: 2,
+                      pb: 2,
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                    }}
                   >
                     <Typography variant="body1" fontWeight="medium">
-                      {booking.client.firstName} {booking.client.lastName}
+                      {booking.clientName || "Guest"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       {format(
@@ -378,10 +363,14 @@ const AdminDashboard: React.FC = () => {
                 recentBookings.slice(0, 5).map((booking: any) => (
                   <Box
                     key={booking._id}
-                    sx={{ mb: 2, pb: 2, borderBottom: "1px solid #eee" }}
+                    sx={{
+                      mb: 2,
+                      pb: 2,
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                    }}
                   >
                     <Typography variant="body1" fontWeight="medium">
-                      {booking.client.firstName} {booking.client.lastName}
+                      {booking.clientName || "Guest"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       {format(new Date(booking.createdAt), "MMM d, yyyy")} - $
@@ -513,9 +502,7 @@ const AdminDashboard: React.FC = () => {
               <TableBody>
                 {filteredBookings.map((booking: any) => (
                   <TableRow key={booking._id}>
-                    <TableCell>
-                      {booking.client.firstName} {booking.client.lastName}
-                    </TableCell>
+                    <TableCell>{booking.clientName || "Guest"}</TableCell>
                     <TableCell>
                       {format(
                         new Date(booking.startTime),
@@ -541,7 +528,9 @@ const AdminDashboard: React.FC = () => {
                     <TableCell>
                       <Button
                         size="small"
-                        onClick={() => navigate(`/bookings/${booking._id}`)}
+                        onClick={() =>
+                          navigate(withSlug(`/bookings/${booking._id}`))
+                        }
                       >
                         View
                       </Button>
@@ -564,29 +553,36 @@ const AdminDashboard: React.FC = () => {
                   <TableCell>Phone</TableCell>
                   <TableCell>Bookings</TableCell>
                   <TableCell>Total Spent</TableCell>
-                  <TableCell>Actions</TableCell>
+                  <TableCell>Last Booking</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {allClients.map((client: any) => (
-                  <TableRow key={client._id}>
-                    <TableCell>
-                      {client.firstName} {client.lastName}
-                    </TableCell>
-                    <TableCell>{client.email}</TableCell>
-                    <TableCell>{client.phone || "-"}</TableCell>
-                    <TableCell>{client.bookingCount || 0}</TableCell>
-                    <TableCell>${client.totalSpent || 0}</TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        onClick={() => handleViewClient(client)}
-                      >
-                        View
-                      </Button>
+                {allClients.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      <Typography color="text.secondary">
+                        No clients yet
+                      </Typography>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  allClients.map((client: any) => (
+                    <TableRow key={client._id}>
+                      <TableCell>{client.clientName || "-"}</TableCell>
+                      <TableCell>{client.clientEmail || "-"}</TableCell>
+                      <TableCell>{client.clientPhone || "-"}</TableCell>
+                      <TableCell>{client.bookingCount || 0}</TableCell>
+                      <TableCell>
+                        ${client.totalSpent?.toFixed(2) || "0.00"}
+                      </TableCell>
+                      <TableCell>
+                        {client.lastBooking
+                          ? format(new Date(client.lastBooking), "MMM d, yyyy")
+                          : "-"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -609,7 +605,7 @@ const AdminDashboard: React.FC = () => {
                       labelLine={false}
                       label={({ name, value }) => `${name}: ${value}`}
                       outerRadius={80}
-                      fill="#8884d8"
+                      fill="#19c1ff"
                       dataKey="value"
                     >
                       {bookingsByType.map((entry, index) => (
@@ -644,7 +640,7 @@ const AdminDashboard: React.FC = () => {
                     />
                     <YAxis />
                     <Tooltip formatter={(value) => `$${value}`} />
-                    <Bar dataKey="value" fill="#1976d2" />
+                    <Bar dataKey="value" fill="#19c1ff" />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -716,90 +712,7 @@ const AdminDashboard: React.FC = () => {
           </Grid>
         </Grid>
       </TabPanel>
-      <Dialog
-        open={clientModalOpen}
-        onClose={handleCloseClientModal}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          Client Profile
-          <Button
-            onClick={handleCloseClientModal}
-            sx={{ minWidth: "auto", p: 1 }}
-          >
-            ✕
-          </Button>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          {clientDetailsLoading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : clientDetailsData?.data?.client ? (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                {clientDetailsData.data.client.firstName}{" "}
-                {clientDetailsData.data.client.lastName}
-              </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Email
-                </Typography>
-                <Typography variant="body1">
-                  {clientDetailsData.data.client.email}
-                </Typography>
-              </Box>
-              {clientDetailsData.data.client.phone && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Phone
-                  </Typography>
-                  <Typography variant="body1">
-                    {clientDetailsData.data.client.phone}
-                  </Typography>
-                </Box>
-              )}
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Total Bookings
-                </Typography>
-                <Typography variant="h6">
-                  {clientDetailsData.data.client.bookingCount || 0}
-                </Typography>
-              </Box>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Total Spent
-                </Typography>
-                <Typography variant="h6">
-                  ${clientDetailsData.data.client.totalSpent || 0}
-                </Typography>
-              </Box>
-              {clientDetailsData.data.client.joinedAt && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Member Since
-                  </Typography>
-                  <Typography variant="body1">
-                    {format(
-                      new Date(clientDetailsData.data.client.joinedAt),
-                      "MMM d, yyyy"
-                    )}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          ) : (
-            <Alert severity="error">Failed to load client</Alert>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseClientModal}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Removed Client Modal - no longer tracking individual clients */}
     </Container>
   );
 };

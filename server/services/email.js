@@ -52,7 +52,7 @@ const initializeEmailService = async () => {
   return true;
 };
 
-const sendBookingConfirmationEmail = async (booking, user) => {
+const sendBookingConfirmationEmail = async (booking) => {
   if (!transporter) {
     console.warn("Email service not initialized");
     return;
@@ -69,7 +69,7 @@ const sendBookingConfirmationEmail = async (booking, user) => {
         </div>
         
         <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px;">
-          <p>Hello <strong>${user.firstName} ${user.lastName}</strong>,</p>
+          <p>Hello <strong>${booking.clientName}</strong>,</p>
           
           <p>Your meeting has been successfully booked and payment has been received. Here are your booking details:</p>
           
@@ -141,7 +141,7 @@ const sendBookingConfirmationEmail = async (booking, user) => {
     const emailText = `
 Booking Confirmed!
 
-Hello ${user.firstName} ${user.lastName},
+Hello ${booking.clientName},
 
 Your meeting has been successfully booked. Here are your details:
 
@@ -165,7 +165,7 @@ Meeting Scheduler Support Team
 
     const mailOptions = {
       from: process.env.SENDER_EMAIL || "noreply@meetingscheduler.com",
-      to: user.email,
+      to: booking.clientEmail,
       subject: `Meeting Confirmed - ${format(startTime, "MMM d, yyyy")}`,
       html: emailHtml,
       text: emailText,
@@ -186,7 +186,7 @@ Meeting Scheduler Support Team
   }
 };
 
-const sendBookingCancellationEmail = async (booking, user, reason) => {
+const sendBookingCancellationEmail = async (booking, reason = null) => {
   if (!transporter) {
     console.warn("Email service not initialized");
     return;
@@ -202,7 +202,7 @@ const sendBookingCancellationEmail = async (booking, user, reason) => {
         </div>
         
         <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px;">
-          <p>Hello <strong>${user.firstName} ${user.lastName}</strong>,</p>
+          <p>Hello <strong>${booking.clientName}</strong>,</p>
           
           <p>Your booking has been cancelled.</p>
           
@@ -253,7 +253,7 @@ const sendBookingCancellationEmail = async (booking, user, reason) => {
     const emailText = `
 Booking Cancelled
 
-Hello ${user.firstName} ${user.lastName},
+Hello ${booking.clientName},
 
 Your booking has been cancelled.
 
@@ -276,7 +276,7 @@ Meeting Scheduler Support Team
 
     const mailOptions = {
       from: process.env.SENDER_EMAIL || "noreply@meetingscheduler.com",
-      to: user.email,
+      to: booking.clientEmail,
       subject: `Booking Cancelled - ${format(startTime, "MMM d, yyyy")}`,
       html: emailHtml,
       text: emailText,

@@ -17,6 +17,7 @@ import { useQuery } from "react-query";
 import { format } from "date-fns";
 import { bookingsApi } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useWithSlug } from "../hooks/useTenantSlug";
 
 interface Booking {
   _id: string;
@@ -33,6 +34,7 @@ interface Booking {
 const MyBookings: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const withSlug = useWithSlug();
 
   const {
     data: bookingsData,
@@ -210,7 +212,9 @@ const MyBookings: React.FC = () => {
 
                   <Button
                     size="small"
-                    onClick={() => navigate(`/bookings/${booking._id}`)}
+                    onClick={() =>
+                      navigate(withSlug(`/bookings/${booking._id}`))
+                    }
                   >
                     View Details
                   </Button>

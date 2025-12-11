@@ -19,8 +19,16 @@ import {
 import { format } from "date-fns";
 import { useQuery, useMutation } from "react-query";
 import { bookingsApi } from "../services/api";
-import { CheckCircle, Error, Schedule, VideoCall } from "@mui/icons-material";
+import {
+  CheckCircle,
+  Error,
+  Schedule,
+  VideoCall,
+  Payment,
+} from "@mui/icons-material";
 import { toast } from "react-toastify";
+import { useWithSlug } from "../hooks/useTenantSlug";
+import PaymentDialog from "../components/Booking/PaymentDialog";
 
 interface BookingDetailsData {
   _id: string;
@@ -46,7 +54,9 @@ interface BookingDetailsData {
 const BookingDetails: React.FC = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
+  const withSlug = useWithSlug();
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
   const {
     data: bookingData,
@@ -66,7 +76,7 @@ const BookingDetails: React.FC = () => {
       onSuccess: () => {
         toast.success("Booking cancelled successfully");
         setCancelDialogOpen(false);
-        setTimeout(() => navigate("/my-bookings"), 1500);
+        setTimeout(() => navigate(withSlug("/")), 1500);
       },
       onError: (error: any) => {
         toast.error(error.response?.data?.error || "Failed to cancel booking");
@@ -131,7 +141,7 @@ const BookingDetails: React.FC = () => {
         </Alert>
         <Button
           variant="contained"
-          onClick={() => navigate("/my-bookings")}
+          onClick={() => navigate(withSlug("/my-bookings"))}
           sx={{ mt: 2 }}
         >
           Back to My Bookings
@@ -158,8 +168,8 @@ const BookingDetails: React.FC = () => {
         <Typography variant="h3" component="h1">
           Booking Details
         </Typography>
-        <Button variant="outlined" onClick={() => navigate("/my-bookings")}>
-          Back
+        <Button variant="outlined" onClick={() => navigate(withSlug("/"))}>
+          Back to Home
         </Button>
       </Box>
 
@@ -324,6 +334,19 @@ const BookingDetails: React.FC = () => {
             flexWrap: "wrap",
           }}
         >
+          {/* Retry Payment Button for pending payments */}
+          {booking.status === "pending" &&
+            booking.paymentStatus === "pending" && (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => setPaymentDialogOpen(true)}
+                startIcon={<Payment />}
+              >
+                Complete Payment
+              </Button>
+            )}
+
           {booking.status === "confirmed" &&
             booking.meetingLink &&
             isUpcoming && (
@@ -350,8 +373,8 @@ const BookingDetails: React.FC = () => {
             </Button>
           )}
 
-          <Button variant="outlined" onClick={() => navigate("/my-bookings")}>
-            Back to My Bookings
+          <Button variant="outlined" onClick={() => navigate(withSlug("/"))}>
+            Back to Home
           </Button>
         </Box>
       </Paper>
@@ -387,6 +410,22 @@ const BookingDetails: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Payment Dialog for retrying payment */}
+      {booking && (
+        <PaymentDialog
+          open={paymentDialogOpen}
+          onClose={() => setPaymentDialogOpen(false)}
+          bookingId={booking._id}
+          amount={booking.amount}
+          onSuccess={() => {
+            setPaymentDialogOpen(false);
+            toast.success("Redirecting to payment...");
+            // Note: User will be redirected to Paystack, then back to payment callback
+            // which will handle the success flow
+          }}
+        />
+      )}
     </Container>
   );
 };

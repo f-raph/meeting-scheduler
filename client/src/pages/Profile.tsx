@@ -20,6 +20,7 @@ import { useMutation, useQuery } from "react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { authApi } from "../services/api";
 import { toast } from "react-toastify";
+import { useWithSlug } from "../hooks/useTenantSlug";
 
 const validationSchema = yup.object().shape({
   firstName: yup
@@ -48,6 +49,7 @@ interface ProfileFormData {
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
+  const withSlug = useWithSlug();
   const { user } = useAuth();
   const [submitError, setSubmitError] = useState("");
 
@@ -147,7 +149,10 @@ const Profile: React.FC = () => {
         <Typography variant="h3" component="h1">
           My Profile
         </Typography>
-        <Button variant="outlined" onClick={() => navigate("/my-bookings")}>
+        <Button
+          variant="outlined"
+          onClick={() => navigate(withSlug("/my-bookings"))}
+        >
           Back to Bookings
         </Button>
       </Box>
@@ -301,7 +306,7 @@ const Profile: React.FC = () => {
                   >
                     <Button
                       variant="outlined"
-                      onClick={() => navigate("/my-bookings")}
+                      onClick={() => navigate(withSlug("/my-bookings"))}
                     >
                       Cancel
                     </Button>
