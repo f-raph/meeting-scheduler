@@ -105,12 +105,10 @@ export const bookingsApi = {
     api.put(`/bookings/${id}/cancel`, { reason }),
 };
 
-// Payments API
+// Payments API (Paystack only)
 export const paymentsApi = {
-  initializePayment: (
-    bookingId: string,
-    gateway?: "flutterwave" | "paystack"
-  ) => api.post("/payments/initialize-payment", { bookingId, gateway }),
+  initializePayment: (bookingId: string) =>
+    api.post("/payments/initialize-payment", { bookingId }),
 
   verifyPayment: (reference: string) =>
     api.post("/payments/verify-payment", { reference }),
@@ -149,33 +147,38 @@ export const adminApi = {
   getRevenueAnalytics: (period?: string) =>
     api.get("/admin/analytics/revenue", { params: { period } }),
 
-  // Paystack subaccount management
+  // Paystack subaccount management (programmatic creation)
   setupSubaccount: (data: {
     businessName: string;
     settlementBank: string;
+    bankName?: string;
     accountNumber: string;
+    accountName?: string;
     percentageCharge?: number;
   }) => api.post("/admin/setup-subaccount", data),
 
   getSubaccountStatus: () => api.get("/admin/subaccount-status"),
 
-  // Flutterwave subaccount management
-  setupFlutterwave: (data: {
-    businessName: string;
-    businessEmail: string;
-    accountBank: string;
-    accountNumber: string;
+  // Get list of banks for subaccount setup
+  getBanks: () => api.get("/admin/banks"),
+
+  // Resolve bank account to get account name
+  resolveAccount: (accountNumber: string, bankCode: string) =>
+    api.get("/admin/resolve-account", {
+      params: { accountNumber, bankCode },
+    }),
+
+  // Reset payment setup (requires password)
+  resetPaymentSetup: (password: string) => 
+    api.delete("/admin/reset-payment-setup", { data: { password } }),
+
+  // Manually link a subaccount created in Paystack dashboard
+  linkSubaccount: (data: {
+    subaccountCode: string;
+    businessName?: string;
     bankName?: string;
-    country?: string;
-    currency?: string;
-  }) => api.post("/admin/setup-flutterwave", data),
-
-  getFlutterwaveStatus: () => api.get("/admin/flutterwave-status"),
-
-  getFlutterwaveBanks: (country?: string) =>
-    api.get("/admin/flutterwave/banks", { params: { country } }),
-
-  getFlutterwaveCountries: () => api.get("/admin/flutterwave/countries"),
+    accountNumber?: string;
+  }) => api.post("/admin/link-subaccount", data),
 };
 
 // Google Calendar API

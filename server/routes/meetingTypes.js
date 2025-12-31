@@ -81,7 +81,7 @@ router.post(
         name,
         description,
         price: price || 0,
-        currency: currency || "NGN",
+        currency: currency || "GHS",
         duration,
         color: color || "#1976d2",
         isActive: isActive !== undefined ? isActive : true,

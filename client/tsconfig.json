@@ -4,8 +4,9 @@
     "lib": [
       "dom",
       "dom.iterable",
-      "es6"
+      "esnext"
     ],
+    "types": ["node"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -15,7 +16,6 @@
     "noFallthroughCasesInSwitch": true,
     "module": "esnext",
     "moduleResolution": "node",
-    "ignoreDeprecations": "6.0",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,

@@ -13,6 +13,8 @@ const paymentRoutes = require("./routes/payments");
 const adminRoutes = require("./routes/admin");
 const googleAuthRoutes = require("./routes/googleAuth");
 const meetingTypesRoutes = require("./routes/meetingTypes");
+// TODO: Uncomment for production deployment when webhook URL is configured in Paystack
+// const webhookRoutes = require("./routes/webhooks");
 const { resolveTenant } = require("./middleware/tenant");
 const { initializeEmailService } = require("./services/email");
 const { runDailyPayouts } = require("./services/payouts");
@@ -29,6 +31,12 @@ app.use(
     credentials: true,
   })
 );
+
+// TODO: Uncomment for production deployment when webhook URL is configured in Paystack
+// Webhook routes MUST be registered BEFORE express.json() middleware
+// because webhooks need raw body for signature verification
+// app.use("/api/webhooks", webhookRoutes);
+
 app.use(express.json());
 
 // Database connection

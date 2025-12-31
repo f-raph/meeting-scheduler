@@ -93,7 +93,7 @@ router.post(
 
       // Fetch meeting type for price and duration
       let amount = parseFloat(process.env.MEETING_FEE) || 50; // Default fallback
-      let currency = "USD";
+      let currency = "GHS";
 
       if (meetingTypeId) {
         const selectedMeetingType = await MeetingType.findOne({
@@ -302,16 +302,13 @@ router.put(
 
       await booking.save();
 
-      // Process refund if payment was completed
+      // Note: Refunds should be processed manually through Paystack dashboard
+      // or implement Paystack's Refund API (POST /refund)
       if (booking.paymentStatus === "paid") {
-        try {
-          await paymentService.processRefund(booking.paymentIntentId);
-          booking.paymentStatus = "refunded";
-          await booking.save();
-        } catch (refundError) {
-          console.error("Refund error:", refundError);
-          // Continue with cancellation even if refund fails
-        }
+        console.log(`[Booking ${booking._id}] Cancellation requested. Payment was made - refund may be needed.`);
+        console.log(`  Payment Reference: ${booking.paymentIntentId}`);
+        console.log(`  Process refund via Paystack dashboard if needed.`);
+        // Mark as cancelled but keep payment status as 'paid' until refund is processed
       }
 
       // Cancel Google Calendar event

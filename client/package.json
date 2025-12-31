@@ -9,7 +9,6 @@
     "@mui/icons-material": "^5.14.0",
     "@mui/lab": "^5.0.0-alpha.140",
     "@mui/material": "^5.14.0",
-    "@types/node": "^16.18.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "axios": "^1.5.0",
@@ -52,5 +51,9 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:5000"
+  "proxy": "http://localhost:5000",
+  "devDependencies": {
+    "@types/d3-ease": "^3.0.2",
+    "@types/node": "^25.0.3"
+  }
 }

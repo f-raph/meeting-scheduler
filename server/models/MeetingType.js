@@ -19,7 +19,7 @@ const meetingTypeSchema = new mongoose.Schema(
     },
     currency: {
       type: String,
-      default: "USD",
+      default: "GHS",
       uppercase: true,
     },
     duration: {
