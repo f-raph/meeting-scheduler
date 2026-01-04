@@ -151,12 +151,13 @@ body {
   font-weight: bold;
 }
 
-.react-calendar__month-view__days__day--weekend {
-  color: var(--brand-yellow);
-}
-
 .react-calendar__month-view__days__day--neighboringMonth {
   color: var(--brand-muted);
+}
+
+/* Keep weekend days same color as weekdays */
+.react-calendar__month-view__days__day--weekend {
+  color: inherit;
 }
 
 .react-calendar__year-view .react-calendar__tile,
@@ -171,6 +172,7 @@ body {
   background: none;
   text-align: center;
   line-height: 16px;
+  color: var(--brand-text);
 }
 
 .react-calendar__tile:disabled {

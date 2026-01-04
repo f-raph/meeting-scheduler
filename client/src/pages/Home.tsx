@@ -42,13 +42,13 @@ const Home: React.FC = () => {
       icon: <CalendarMonth sx={{ fontSize: 40 }} />,
       title: "Smart Scheduling",
       description:
-        "AI-powered availability management with automatic conflict detection and Google Calendar sync.",
+        "Availability management with automatic conflict detection and Google Calendar sync.",
     },
     {
       icon: <Payment sx={{ fontSize: 40 }} />,
       title: "Multi-Currency Payments",
       description:
-        "Accept payments in USD, EUR, GBP, NGN and more with instant 80/20 revenue splits.",
+        "Accept payments in USD, EUR, GBP, NGN and more with instant payouts.",
     },
     {
       icon: <VideoCall sx={{ fontSize: 40 }} />,
@@ -65,8 +65,7 @@ const Home: React.FC = () => {
     {
       icon: <Speed sx={{ fontSize: 40 }} />,
       title: "Instant Payouts",
-      description:
-        "Receive 80% of payments directly to your bank account instantly via split settlements.",
+      description: "Receive payments directly to your bank account instantly.",
     },
     {
       icon: <Public sx={{ fontSize: 40 }} />,
@@ -148,18 +147,6 @@ const Home: React.FC = () => {
         <Container maxWidth="lg" sx={{ position: "relative", zIndex: 1 }}>
           <Grid container spacing={6} alignItems="center">
             <Grid item xs={12} md={6}>
-              <Typography
-                variant="overline"
-                sx={{
-                  color: brand.yellow,
-                  fontWeight: 600,
-                  letterSpacing: 2,
-                  mb: 2,
-                  display: "block",
-                }}
-              >
-                PROFESSIONAL MEETING PLATFORM
-              </Typography>
               <Typography
                 variant="h1"
                 sx={{
@@ -247,25 +234,17 @@ const Home: React.FC = () => {
                   boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
                 }}
               >
-                {/* Placeholder for hero image - replace with actual photo */}
                 <Box
+                  component="img"
+                  src="/images/hero-meeting.png"
+                  alt="Professional video meeting dashboard"
                   sx={{
                     width: "100%",
                     height: "400px",
-                    background:
-                      "linear-gradient(135deg, rgba(25, 193, 255, 0.14) 0%, rgba(15, 154, 216, 0.18) 35%, rgba(8, 22, 45, 0.85) 100%)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    position: "relative",
+                    objectFit: "cover",
+                    display: "block",
                   }}
-                >
-                  <Typography variant="caption" sx={{ color: brand.muted }}>
-                    [Hero Image: Professional video meeting dashboard]
-                  </Typography>
-                  {/* Image: Use Unsplash/Pexels photo of diverse team in video conference */}
-                  {/* Suggested: https://unsplash.com/photos/people-laughing-and-talking-outside-during-daytime-lEJoSa5GTdA */}
-                </Box>
+                />
               </Box>
             </Grid>
           </Grid>
@@ -344,10 +323,10 @@ const Home: React.FC = () => {
                     border: "1px solid",
                     borderColor: brand.border,
                     borderRadius: 3,
-                    p: 3,
                     height: "100%",
                     transition: "all 0.3s ease",
                     boxShadow: "0 16px 44px rgba(0, 0, 0, 0.35)",
+                    overflow: "hidden",
                     "&:hover": {
                       borderColor: brand.cyan,
                       transform: "translateY(-6px)",
@@ -355,35 +334,63 @@ const Home: React.FC = () => {
                     },
                   }}
                 >
-                  <CardContent sx={{ p: 0 }}>
-                    <Box
+                  <Box
+                    sx={{
+                      position: "relative",
+                      height: "300px",
+                      backgroundImage: `url(/images/feature-${index + 1}.jpg)`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "flex-end",
+                      "&::before": {
+                        content: '""',
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundImage: `url(/images/feature-${
+                          index + 1
+                        }.jpg)`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        filter: "blur(8px)",
+                        maskImage:
+                          "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.8) 20%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0.15) 60%, rgba(0, 0, 0, 0) 100%)",
+                        WebkitMaskImage:
+                          "linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.8) 20%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0.15) 60%, rgba(0, 0, 0, 0) 100%)",
+                        zIndex: 0,
+                      },
+                    }}
+                  >
+                    <CardContent
                       sx={{
-                        width: 64,
-                        height: 64,
-                        borderRadius: 2,
-                        bgcolor: alpha(brand.cyan, 0.14),
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: brand.cyan,
-                        mb: 3,
+                        position: "relative",
+                        zIndex: 1,
+                        p: 1.5,
+                        pb: 2,
                       }}
                     >
-                      {feature.icon}
-                    </Box>
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 700, mb: 2, color: brand.text }}
-                    >
-                      {feature.title}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: brand.muted, lineHeight: 1.7 }}
-                    >
-                      {feature.description}
-                    </Typography>
-                  </CardContent>
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          fontWeight: 700,
+                          mb: 0.5,
+                          color: brand.surfaceAlt,
+                        }}
+                      >
+                        {feature.title}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: brand.surfaceAlt, lineHeight: 1.4 }}
+                      >
+                        {feature.description}
+                      </Typography>
+                    </CardContent>
+                  </Box>
                 </Card>
               </Grid>
             ))}

@@ -5,13 +5,8 @@ import {
   Typography,
   Button,
   Box,
-  IconButton,
-  Menu,
-  MenuItem,
   Container,
   alpha,
-  Divider,
-  Avatar,
 } from "@mui/material";
 import { Link, useNavigate } from "react-router-dom";
 import { CalendarMonth } from "@mui/icons-material";
@@ -33,20 +28,10 @@ const Navbar: React.FC = () => {
   const { user, logout, isAuthenticated, isAdmin } = useAuth();
   const navigate = useNavigate();
   const withSlug = useWithSlug();
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-
-  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
 
   const handleLogout = () => {
     logout();
     navigate(withSlug("/"));
-    handleClose();
   };
 
   return (
@@ -166,7 +151,7 @@ const Navbar: React.FC = () => {
                     },
                   }}
                 >
-                  Admin Sign In
+                  Sign In
                 </Button>
                 <Button
                   variant="contained"
@@ -192,106 +177,43 @@ const Navbar: React.FC = () => {
                 </Button>
               </>
             ) : (
-              <Box>
-                <IconButton
-                  onClick={handleMenu}
+              <>
+                <Button
+                  component={Link}
+                  to={withSlug("/admin/settings")}
                   sx={{
-                    p: 0.5,
+                    color: brand.text,
+                    textTransform: "none",
+                    fontSize: "0.95rem",
+                    fontWeight: 500,
+                    px: 2,
+                    py: 1,
+                    borderRadius: 2,
                     "&:hover": {
                       bgcolor: alpha(brand.cyan, 0.12),
                     },
                   }}
                 >
-                  <Avatar
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      bgcolor: brand.yellow,
-                      color: "#0a1f33",
-                      fontSize: "0.95rem",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {user?.firstName?.[0]}
-                    {user?.lastName?.[0]}
-                  </Avatar>
-                </IconButton>
-                <Menu
-                  id="menu-appbar"
-                  anchorEl={anchorEl}
-                  anchorOrigin={{
-                    vertical: "bottom",
-                    horizontal: "right",
-                  }}
-                  keepMounted
-                  transformOrigin={{
-                    vertical: "top",
-                    horizontal: "right",
-                  }}
-                  open={Boolean(anchorEl)}
-                  onClose={handleClose}
-                  PaperProps={{
-                    sx: {
-                      mt: 1.5,
-                      bgcolor: brand.surface,
-                      color: brand.text,
-                      borderRadius: 2,
-                      border: "1px solid",
-                      borderColor: alpha(brand.cyan, 0.18),
-                      minWidth: 220,
-                      boxShadow: "0 18px 48px rgba(0, 0, 0, 0.45)",
+                  Settings
+                </Button>
+                <Button
+                  onClick={handleLogout}
+                  sx={{
+                    color: "#f87171",
+                    textTransform: "none",
+                    fontSize: "0.95rem",
+                    fontWeight: 500,
+                    px: 2,
+                    py: 1,
+                    borderRadius: 2,
+                    "&:hover": {
+                      bgcolor: alpha("#ef4444", 0.14),
                     },
                   }}
                 >
-                  <Box sx={{ px: 2, py: 1.5 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                      {user?.firstName} {user?.lastName}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: brand.muted }}>
-                      {user?.email}
-                    </Typography>
-                  </Box>
-                  <Divider sx={{ borderColor: alpha(brand.cyan, 0.18) }} />
-                  <MenuItem
-                    onClick={() => {
-                      navigate(withSlug("/admin/availability"));
-                      handleClose();
-                    }}
-                    sx={{
-                      py: 1.5,
-                      fontSize: "0.95rem",
-                      "&:hover": { bgcolor: alpha(brand.cyan, 0.12) },
-                    }}
-                  >
-                    Manage Availability
-                  </MenuItem>
-                  <MenuItem
-                    onClick={() => {
-                      navigate(withSlug("/admin/settings"));
-                      handleClose();
-                    }}
-                    sx={{
-                      py: 1.5,
-                      fontSize: "0.95rem",
-                      "&:hover": { bgcolor: alpha(brand.cyan, 0.12) },
-                    }}
-                  >
-                    Settings
-                  </MenuItem>
-                  <Divider sx={{ borderColor: alpha(brand.cyan, 0.18) }} />
-                  <MenuItem
-                    onClick={handleLogout}
-                    sx={{
-                      py: 1.5,
-                      fontSize: "0.95rem",
-                      color: "#f87171",
-                      "&:hover": { bgcolor: alpha("#ef4444", 0.14) },
-                    }}
-                  >
-                    Sign Out
-                  </MenuItem>
-                </Menu>
-              </Box>
+                  Sign Out
+                </Button>
+              </>
             )}
           </Box>
         </Toolbar>

@@ -200,9 +200,6 @@ const BookingPage: React.FC = () => {
                 value={selectedDate}
                 minDate={new Date()}
                 maxDate={new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)} // 90 days ahead
-                tileDisabled={({ date }) => {
-                  return date.getDay() === 0 || date.getDay() === 6;
-                }}
               />
             </Box>
           </Paper>
@@ -256,11 +253,18 @@ const BookingPage: React.FC = () => {
 
       {/* Pricing Info */}
       <Box sx={{ mt: 4, textAlign: "center" }}>
-        <Paper elevation={1} sx={{ p: 3, backgroundColor: "grey.50" }}>
-          <Typography variant="h6" gutterBottom>
+        <Paper
+          elevation={1}
+          sx={{
+            p: 3,
+            backgroundColor: "#12305a",
+            border: "1px solid rgba(25, 193, 255, 0.18)",
+          }}
+        >
+          <Typography variant="h6" gutterBottom sx={{ color: "#e5f0ff" }}>
             Select a meeting type above to see pricing and duration
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{ color: "#b7c8e8" }}>
             Each booking includes Google Meet link, calendar invite, and email
             confirmations
           </Typography>
@@ -355,11 +359,24 @@ const BookingPage: React.FC = () => {
                   <Box
                     sx={{
                       display: "flex",
+                      alignItems: "center",
                       justifyContent: "space-between",
                       width: "100%",
+                      gap: 1,
                     }}
                   >
-                    <Typography>{type.name}</Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box
+                        sx={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: "50%",
+                          backgroundColor: type.color || "#19c1ff",
+                          border: "1px solid rgba(0,0,0,0.12)",
+                        }}
+                      />
+                      <Typography>{type.name}</Typography>
+                    </Box>
                     <Typography color="text.secondary" sx={{ ml: 2 }}>
                       {type.currency || "USD"} {type.price.toLocaleString()} •{" "}
                       {type.duration}min

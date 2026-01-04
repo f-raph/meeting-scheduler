@@ -219,8 +219,7 @@ const Register: React.FC = () => {
             variant="h6"
             sx={{ color: brand.muted, mb: 4, lineHeight: 1.6 }}
           >
-            Create your admin account and get your own booking page. Clients
-            book directly—no signup required for them.
+            Create your admin account and get your own booking page.
           </Typography>
 
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
