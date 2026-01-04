@@ -75,12 +75,16 @@ const bookingSchema = new mongoose.Schema(
       default: "pending",
     },
     paymentIntentId: {
-      type: String,
+      type: String, // Paystack transaction reference
     },
     paymentGateway: {
       type: String,
-      enum: ["flutterwave", "paystack"],
-      default: "flutterwave", // Flutterwave is the default gateway
+      enum: ["paystack"],
+      default: "paystack",
+    },
+    // Paystack subaccount code used for split payment
+    subaccountCode: {
+      type: String,
     },
     amount: {
       type: Number,
@@ -88,7 +92,17 @@ const bookingSchema = new mongoose.Schema(
     },
     currency: {
       type: String,
-      default: "USD",
+      default: "GHS",
+    },
+    // Payment timestamps
+    paidAt: {
+      type: Date,
+    },
+    refundedAt: {
+      type: Date,
+    },
+    refundAmount: {
+      type: Number,
     },
     // Google Calendar/Meet integration
     googleEventId: {
@@ -140,6 +154,7 @@ bookingSchema.index({ startTime: 1, status: 1 });
 bookingSchema.index({ client: 1 });
 bookingSchema.index({ paymentStatus: 1 });
 bookingSchema.index({ ownerAdmin: 1, paymentStatus: 1, payoutStatus: 1 });
+bookingSchema.index({ paymentIntentId: 1 }); // For payment verification lookups
 
 // Virtual for meeting duration in hours
 bookingSchema.virtual("durationHours").get(function () {

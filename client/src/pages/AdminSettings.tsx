@@ -20,6 +20,13 @@ import {
   Select,
   FormControl,
   InputLabel,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import {
   CalendarMonth as CalendarIcon,
@@ -31,8 +38,10 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  ContentCopy as CopyIcon,
+  OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
-import { googleCalendarApi, adminApi, meetingTypesApi } from "../services/api";
+import { googleCalendarApi, adminApi, meetingTypesApi, authApi } from "../services/api";
 import { toast } from "react-toastify";
 
 interface TabPanelProps {
@@ -60,6 +69,10 @@ function TabPanel(props: TabPanelProps) {
 const AdminSettings: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
 
+  // Admin profile state (for booking URL)
+  const [adminProfile, setAdminProfile] = useState<any>(null);
+  const [bookingUrl, setBookingUrl] = useState("");
+
   // Google Calendar state
   const [calendarStatus, setCalendarStatus] = useState<any>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -72,19 +85,13 @@ const AdminSettings: React.FC = () => {
   const [businessName, setBusinessName] = useState("");
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
   const [banks, setBanks] = useState<any[]>([]);
-
-  // Flutterwave state
-  const [flutterwaveStatus, setFlutterwaveStatus] = useState<any>(null);
-  const [flutterwaveLoading, setFlutterwaveLoading] = useState(false);
-  const [flwBusinessName, setFlwBusinessName] = useState("");
-  const [flwBusinessEmail, setFlwBusinessEmail] = useState("");
-  const [flwCountry, setFlwCountry] = useState("NG");
-  const [flwCurrency, setFlwCurrency] = useState("NGN");
-  const [flwBankCode, setFlwBankCode] = useState("");
-  const [flwAccountNumber, setFlwAccountNumber] = useState("");
-  const [flwCountries, setFlwCountries] = useState<any[]>([]);
-  const [flwBanks, setFlwBanks] = useState<any[]>([]);
+  const [resolvingAccount, setResolvingAccount] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetError, setResetError] = useState("");
 
   // Meeting types state
   const [meetingTypes, setMeetingTypes] = useState<any[]>([]);
@@ -95,21 +102,54 @@ const AdminSettings: React.FC = () => {
     name: "",
     description: "",
     price: 0,
-    currency: "USD",
+    currency: "GHS",
     duration: 60,
     color: "#19c1ff",
     isActive: true,
   });
 
   useEffect(() => {
+    fetchAdminProfile();
     fetchCalendarStatus();
     fetchSubaccountStatus();
-    fetchFlutterwaveStatus();
     fetchBanks();
-    fetchFlutterwaveCountries();
-    fetchFlutterwaveBanks(flwCountry);
     fetchMeetingTypes();
   }, []);
+
+  const fetchAdminProfile = async () => {
+    try {
+      const response = await authApi.getProfile();
+      setAdminProfile(response.data.user);
+      
+      // Build booking URL from slug
+      if (response.data.user?.slug) {
+        const baseUrl = window.location.origin;
+        setBookingUrl(`${baseUrl}/${response.data.user.slug}/book`);
+      }
+    } catch (error) {
+      console.error("Failed to fetch admin profile:", error);
+    }
+  };
+
+  const handleCopyBookingUrl = () => {
+    navigator.clipboard.writeText(bookingUrl);
+    toast.success("Booking URL copied to clipboard!");
+  };
+
+  const handleOpenBookingUrl = () => {
+    window.open(bookingUrl, "_blank");
+  };
+
+  // Auto-resolve account number when both bank and account number are entered
+  useEffect(() => {
+    // Trigger resolution when account number is 13 digits (Ghana bank format)
+    if (bankCode && accountNumber && accountNumber.length >= 13) {
+      resolveAccountNumber();
+    } else {
+      setAccountName("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankCode, accountNumber]);
 
   const fetchCalendarStatus = async () => {
     try {
@@ -221,151 +261,150 @@ const AdminSettings: React.FC = () => {
 
   const fetchBanks = async () => {
     try {
-      // Nigerian banks - you can expand this or fetch from Paystack API
-      const nigerianBanks = [
-        { name: "Access Bank", code: "044" },
-        { name: "Citibank", code: "023" },
-        { name: "Ecobank Nigeria", code: "050" },
-        { name: "Fidelity Bank", code: "070" },
-        { name: "First Bank of Nigeria", code: "011" },
-        { name: "First City Monument Bank", code: "214" },
-        { name: "Guaranty Trust Bank", code: "058" },
-        { name: "Heritage Bank", code: "030" },
-        { name: "Keystone Bank", code: "082" },
-        { name: "Polaris Bank", code: "076" },
-        { name: "Providus Bank", code: "101" },
-        { name: "Stanbic IBTC Bank", code: "221" },
-        { name: "Standard Chartered Bank", code: "068" },
-        { name: "Sterling Bank", code: "232" },
-        { name: "Union Bank of Nigeria", code: "032" },
-        { name: "United Bank for Africa", code: "033" },
-        { name: "Unity Bank", code: "215" },
-        { name: "Wema Bank", code: "035" },
-        { name: "Zenith Bank", code: "057" },
-      ];
-      setBanks(nigerianBanks);
+      const response = await adminApi.getBanks();
+      setBanks(response.data.banks || []);
     } catch (error) {
       console.error("Failed to fetch banks:", error);
+      // Fallback to common Ghanaian banks
+      setBanks([
+        { name: "Absa Bank Ghana Limited", code: "GH010100" },
+        { name: "Access Bank Ghana Plc", code: "GH130100" },
+        { name: "ADB Bank Limited", code: "GH080100" },
+        { name: "Bank of Africa Ghana Limited", code: "GH210100" },
+        { name: "CalBank Limited", code: "GH090100" },
+        { name: "Consolidated Bank Ghana Limited", code: "GH140100" },
+        { name: "Ecobank Ghana Limited", code: "GH040100" },
+        { name: "FBNBank Ghana Limited", code: "GH200100" },
+        { name: "Fidelity Bank Ghana Limited", code: "GH240100" },
+        { name: "First Atlantic Bank Limited", code: "GH170100" },
+        { name: "First National Bank Ghana Limited", code: "GH330100" },
+        { name: "GCB Bank Limited", code: "GH020100" },
+        { name: "Guaranty Trust Bank Ghana Limited", code: "GH230100" },
+        { name: "National Investment Bank Limited", code: "GH050100" },
+        { name: "OmniBSIC Bank Ghana Limited", code: "GH300100" },
+        { name: "Prudential Bank Limited", code: "GH180100" },
+        { name: "Republic Bank Ghana Limited", code: "GH110100" },
+        { name: "Société Générale Ghana Limited", code: "GH190100" },
+        { name: "Stanbic Bank Ghana Limited", code: "GH100100" },
+        { name: "Standard Chartered Bank Ghana Limited", code: "GH060100" },
+        { name: "United Bank for Africa Ghana Limited", code: "GH030100" },
+        { name: "Zenith Bank Ghana Limited", code: "GH070100" },
+      ]);
     }
   };
 
-  const handleSetupSubaccount = async () => {
+  const resolveAccountNumber = async () => {
+    // Ghana bank account numbers are 13 digits
+    if (!bankCode || !accountNumber || accountNumber.length < 13) {
+      return;
+    }
+
+    try {
+      setResolvingAccount(true);
+      const response = await adminApi.resolveAccount(accountNumber, bankCode);
+      setAccountName(response.data.accountName);
+    } catch (error: any) {
+      console.error("Failed to resolve account:", error);
+      setAccountName("");
+      toast.error(
+        error.response?.data?.error || 
+        "Could not verify account number. Please check your bank and account details."
+      );
+    } finally {
+      setResolvingAccount(false);
+    }
+  };
+
+  const handleSetupSubaccountClick = () => {
     if (!businessName || !bankCode || !accountNumber) {
       toast.error("Please fill in all required fields");
       return;
     }
 
+    if (!accountName) {
+      toast.error("Please wait for account verification or check your account details");
+      return;
+    }
+
+    // Show confirmation dialog
+    setConfirmDialogOpen(true);
+  };
+
+  const handleConfirmSetupSubaccount = async () => {
+    setConfirmDialogOpen(false);
+    
+    // Get selected bank name for display
+    const selectedBank = banks.find((b: any) => b.code === bankCode);
+    const selectedBankName = selectedBank?.name || "";
+
     try {
       setSubaccountLoading(true);
-      await adminApi.setupSubaccount({
+      const response = await adminApi.setupSubaccount({
         businessName,
         settlementBank: bankCode,
+        bankName: selectedBankName,
         accountNumber,
-        percentageCharge: 80, // 80% to tenant, 20% to platform
+        accountName: accountName || undefined,
+        percentageCharge: 100, // Admin gets 100% (platform fee handled separately if configured)
       });
-      toast.success(
-        "Subaccount created successfully! You'll now receive 80% of each payment instantly."
-      );
+      
+      // Check if subaccount already existed
+      if (response.data.alreadyExists) {
+        toast.info("Payment setup was already complete.");
+      } else {
+        toast.success(
+          "Payment setup complete! You can now receive payments."
+        );
+      }
+      
       await fetchSubaccountStatus();
       setBusinessName("");
       setBankCode("");
       setAccountNumber("");
+      setAccountName("");
     } catch (error: any) {
-      toast.error(error.response?.data?.error || "Failed to setup subaccount");
+      const errorMsg = error.response?.data?.error || "Failed to setup payment account";
+      toast.error(errorMsg);
+      
+      // Show additional help for common errors
+      if (errorMsg.includes("account number")) {
+        toast.info("Tip: Make sure your account number is correct and matches your bank records.", { autoClose: 8000 });
+      }
     } finally {
       setSubaccountLoading(false);
     }
   };
 
-  // Flutterwave functions
-  const fetchFlutterwaveStatus = async () => {
-    try {
-      setFlutterwaveLoading(true);
-      const response = await adminApi.getFlutterwaveStatus();
-      setFlutterwaveStatus(response.data);
-    } catch (error) {
-      console.error("Failed to fetch Flutterwave status:", error);
-      setFlutterwaveStatus({ hasSubaccount: false });
-    } finally {
-      setFlutterwaveLoading(false);
-    }
+  const handleResetPaymentClick = () => {
+    setResetPassword("");
+    setResetError("");
+    setResetDialogOpen(true);
   };
 
-  const fetchFlutterwaveBanks = async (country: string = "NG") => {
-    try {
-      const response = await adminApi.getFlutterwaveBanks(country);
-      setFlwBanks(response.data.banks || []);
-    } catch (error) {
-      console.error("Failed to fetch Flutterwave banks:", error);
-      // Fallback to common banks if API fails
-      const commonBanks = [
-        { name: "Access Bank", code: "044" },
-        { name: "GTBank", code: "058" },
-        { name: "First Bank of Nigeria", code: "011" },
-        { name: "United Bank for Africa", code: "033" },
-        { name: "Zenith Bank", code: "057" },
-        { name: "Wema Bank", code: "035" },
-        { name: "Sterling Bank", code: "232" },
-        { name: "Providus Bank", code: "101" },
-      ];
-      setFlwBanks(commonBanks);
-    }
-  };
-
-  const fetchFlutterwaveCountries = async () => {
-    try {
-      const response = await adminApi.getFlutterwaveCountries();
-      setFlwCountries(response.data.countries || []);
-    } catch (error) {
-      console.error("Failed to fetch Flutterwave countries:", error);
-      // Fallback to common countries
-      setFlwCountries([
-        { code: "NG", name: "Nigeria", currency: "NGN" },
-        { code: "GH", name: "Ghana", currency: "GHS" },
-        { code: "KE", name: "Kenya", currency: "KES" },
-        { code: "ZA", name: "South Africa", currency: "ZAR" },
-        { code: "US", name: "United States", currency: "USD" },
-        { code: "GB", name: "United Kingdom", currency: "GBP" },
-      ]);
-    }
-  };
-
-  const handleSetupFlutterwave = async () => {
-    if (
-      !flwBusinessName ||
-      !flwBusinessEmail ||
-      !flwBankCode ||
-      !flwAccountNumber
-    ) {
-      toast.error("Please fill in all required fields");
+  const handleConfirmResetPayment = async () => {
+    if (!resetPassword) {
+      setResetError("Please enter your password");
       return;
     }
 
     try {
-      setFlutterwaveLoading(true);
-      await adminApi.setupFlutterwave({
-        businessName: flwBusinessName,
-        businessEmail: flwBusinessEmail,
-        accountBank: flwBankCode,
-        accountNumber: flwAccountNumber,
-        bankName: flwBanks.find((b) => b.code === flwBankCode)?.name,
-        country: flwCountry,
-        currency: flwCurrency,
-      });
-      toast.success(
-        "Flutterwave subaccount created successfully! You'll now receive 100% of each payment."
-      );
-      await fetchFlutterwaveStatus();
-      setFlwBusinessName("");
-      setFlwBusinessEmail("");
-      setFlwBankCode("");
-      setFlwAccountNumber("");
+      setSubaccountLoading(true);
+      setResetError("");
+      await adminApi.resetPaymentSetup(resetPassword);
+      toast.success("Payment setup has been reset. You can now set up a new payment account.");
+      setResetDialogOpen(false);
+      setResetPassword("");
+      await fetchSubaccountStatus();
+      // Clear form fields
+      setBusinessName("");
+      setBankCode("");
+      setAccountNumber("");
+      setAccountName("");
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.error || "Failed to setup Flutterwave subaccount"
-      );
+      const errorMsg = error.response?.data?.error || "Failed to reset payment setup";
+      setResetError(errorMsg);
     } finally {
-      setFlutterwaveLoading(false);
+      setSubaccountLoading(false);
     }
   };
 
@@ -391,7 +430,7 @@ const AdminSettings: React.FC = () => {
         name: "",
         description: "",
         price: 0,
-        currency: "USD",
+        currency: "GHS",
         duration: 60,
         color: "#19c1ff",
         isActive: true,
@@ -417,7 +456,7 @@ const AdminSettings: React.FC = () => {
         name: "",
         description: "",
         price: 0,
-        currency: "USD",
+        currency: "GHS",
         duration: 60,
         color: "#19c1ff",
         isActive: true,
@@ -463,6 +502,69 @@ const AdminSettings: React.FC = () => {
         Manage your profile, integrations, and preferences
       </Typography>
 
+      {/* Booking URL Section */}
+      {bookingUrl && (
+        <Card sx={{ mb: 3, bgcolor: "rgba(25, 193, 255, 0.08)", border: "1px solid", borderColor: "primary.main" }}>
+          <CardContent>
+            <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+              <LinkIcon sx={{ fontSize: 32, mr: 2, color: "primary.main" }} />
+              <Box>
+                <Typography variant="h6" color="primary.main">
+                  Your Booking URL
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Share this link with clients so they can book your services
+                </Typography>
+              </Box>
+            </Box>
+            
+            <Box 
+              sx={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: 1,
+              }}
+            >
+              <TextField
+                fullWidth
+                value={bookingUrl}
+                InputProps={{
+                  readOnly: true,
+                  sx: { 
+                    fontFamily: "monospace",
+                  }
+                }}
+                size="small"
+              />
+              <Tooltip title="Copy URL">
+                <IconButton 
+                  onClick={handleCopyBookingUrl}
+                  sx={{ 
+                    bgcolor: "primary.main", 
+                    color: "white",
+                    "&:hover": { bgcolor: "primary.dark" } 
+                  }}
+                >
+                  <CopyIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Open in new tab">
+                <IconButton 
+                  onClick={handleOpenBookingUrl}
+                  sx={{ 
+                    bgcolor: "primary.main", 
+                    color: "white",
+                    "&:hover": { bgcolor: "primary.dark" } 
+                  }}
+                >
+                  <OpenInNewIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
       <Paper sx={{ width: "100%" }}>
         <Tabs
           value={tabValue}
@@ -484,10 +586,9 @@ const AdminSettings: React.FC = () => {
           />
           <Tab
             icon={<WalletIcon />}
-            label="Paystack (Legacy)"
+            label="Payment Setup"
             iconPosition="start"
           />
-          <Tab icon={<WalletIcon />} label="Flutterwave" iconPosition="start" />
         </Tabs>
 
         {/* Google Calendar Tab */}
@@ -570,8 +671,8 @@ const AdminSettings: React.FC = () => {
                     </Box>
                   )}
 
-                  <Box sx={{ bgcolor: "grey.50", p: 2, borderRadius: 1 }}>
-                    <Typography variant="subtitle2" gutterBottom>
+                  <Box sx={{ bgcolor: "rgba(25, 193, 255, 0.08)", p: 2, borderRadius: 1, border: "1px solid", borderColor: "divider" }}>
+                    <Typography variant="subtitle2" gutterBottom color="primary.main">
                       Features
                     </Typography>
                     <Box component="ul" sx={{ pl: 2, mt: 1 }}>
@@ -733,17 +834,13 @@ const AdminSettings: React.FC = () => {
                         }
                         label="Currency"
                       >
+                        <MenuItem value="GHS">GHS (₵)</MenuItem>
                         <MenuItem value="USD">USD ($)</MenuItem>
                         <MenuItem value="EUR">EUR (€)</MenuItem>
                         <MenuItem value="GBP">GBP (£)</MenuItem>
                         <MenuItem value="NGN">NGN (₦)</MenuItem>
-                        <MenuItem value="INR">INR (₹)</MenuItem>
-                        <MenuItem value="JPY">JPY (¥)</MenuItem>
-                        <MenuItem value="CAD">CAD ($)</MenuItem>
-                        <MenuItem value="AUD">AUD ($)</MenuItem>
-                        <MenuItem value="ZAR">ZAR (R)</MenuItem>
                         <MenuItem value="KES">KES (KSh)</MenuItem>
-                        <MenuItem value="GHS">GHS (₵)</MenuItem>
+                        <MenuItem value="ZAR">ZAR (R)</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>
@@ -787,7 +884,7 @@ const AdminSettings: React.FC = () => {
                       name: "",
                       description: "",
                       price: 0,
-                      currency: "USD",
+                      currency: "GHS",
                       duration: 60,
                       color: "#19c1ff",
                       isActive: true,
@@ -856,7 +953,7 @@ const AdminSettings: React.FC = () => {
                       )}
                       <Divider sx={{ my: 1 }} />
                       <Typography variant="body2">
-                        <strong>Price:</strong> {type.currency || "USD"}{" "}
+                        <strong>Price:</strong> {type.currency || "GHS"}{" "}
                         {type.price.toLocaleString()}
                       </Typography>
                       <Typography variant="body2">
@@ -873,7 +970,7 @@ const AdminSettings: React.FC = () => {
                             name: type.name,
                             description: type.description || "",
                             price: type.price,
-                            currency: type.currency || "USD",
+                            currency: type.currency || "GHS",
                             duration: type.duration,
                             color: type.color,
                             isActive: type.isActive,
@@ -910,7 +1007,7 @@ const AdminSettings: React.FC = () => {
           )}
         </TabPanel>
 
-        {/* Payout Settings Tab */}
+        {/* Payment Setup Tab (Paystack) */}
         <TabPanel value={tabValue} index={2}>
           <Card>
             <CardContent>
@@ -919,10 +1016,10 @@ const AdminSettings: React.FC = () => {
                   sx={{ fontSize: 40, mr: 2, color: "primary.main" }}
                 />
                 <Box>
-                  <Typography variant="h6">Split Payment Setup</Typography>
+                  <Typography variant="h6">Paystack Payment Setup</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Receive 80% of each payment instantly via Paystack
-                    subaccount
+                    Receive payments directly to your bank account via Paystack
+                    split payments
                   </Typography>
                 </Box>
               </Box>
@@ -936,8 +1033,8 @@ const AdminSettings: React.FC = () => {
                     icon={<CheckCircleIcon />}
                     sx={{ mb: 2 }}
                   >
-                    Your subaccount is configured! You receive 80% of each
-                    booking payment instantly.
+                    Your payment account is configured! Payments from clients
+                    will be sent directly to your bank account.
                   </Alert>
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
@@ -951,26 +1048,16 @@ const AdminSettings: React.FC = () => {
                     <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
-                        label="Account Number"
-                        value={subaccountStatus.subaccount.accountNumber || ""}
+                        label="Bank"
+                        value={subaccountStatus.subaccount.bankName || ""}
                         disabled
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
-                        label="Your Share"
-                        value={`${
-                          subaccountStatus.subaccount.percentageCharge || 80
-                        }%`}
-                        disabled
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Subaccount Code"
-                        value={subaccountStatus.subaccount.subaccountCode || ""}
+                        label="Account Number"
+                        value={subaccountStatus.subaccount.accountNumber || ""}
                         disabled
                       />
                     </Grid>
@@ -978,18 +1065,17 @@ const AdminSettings: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <Alert severity="warning" sx={{ mb: 2 }}>
-                    <strong>Note:</strong> Instant split payments (80/20) via
-                    Paystack subaccounts are currently only available for
-                    Nigerian bank accounts. If you're in another country,
-                    payments will still be processed but you'll need to contact
-                    support for alternative payout arrangements.
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <strong>How it works:</strong> When clients pay for
+                    bookings, the payment is automatically split and sent
+                    directly to your bank account via Paystack. No manual
+                    withdrawals needed!
                   </Alert>
 
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Set up automatic payment splits: 80% goes directly to your
-                    bank account, 20% to platform fees. No manual payouts
-                    needed!
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    <strong>Note:</strong> Paystack subaccounts are currently
+                    available for Ghanaian bank accounts. Your account details
+                    will be verified automatically.
                   </Alert>
 
                   <Grid container spacing={2}>
@@ -1001,15 +1087,19 @@ const AdminSettings: React.FC = () => {
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
                         required
+                        helperText="This name will appear on payment receipts"
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth required>
-                        <InputLabel>Bank (Nigerian Banks)</InputLabel>
+                        <InputLabel>Bank</InputLabel>
                         <Select
                           value={bankCode}
-                          onChange={(e) => setBankCode(e.target.value)}
-                          label="Bank (Nigerian Banks)"
+                          onChange={(e) => {
+                            setBankCode(e.target.value);
+                            setAccountName("");
+                          }}
+                          label="Bank"
                         >
                           {banks.map((bank) => (
                             <MenuItem key={bank.code} value={bank.code}>
@@ -1023,253 +1113,191 @@ const AdminSettings: React.FC = () => {
                       <TextField
                         fullWidth
                         label="Account Number"
-                        placeholder="0123456789"
+                        placeholder="0123456789012"
                         value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, "");
+                          if (value.length <= 13) {
+                            setAccountNumber(value);
+                          }
+                        }}
                         required
-                        inputProps={{ maxLength: 10 }}
+                        inputProps={{ maxLength: 13 }}
+                        helperText={
+                          resolvingAccount
+                            ? "Verifying account..."
+                            : accountName || "Enter 13-digit account number"
+                        }
+                        InputProps={{
+                          endAdornment: resolvingAccount ? (
+                            <CircularProgress size={20} />
+                          ) : accountName ? (
+                            <CheckCircleIcon color="success" />
+                          ) : null,
+                        }}
                       />
                     </Grid>
+                    {accountName && (
+                      <Grid item xs={12}>
+                        <Alert severity="success">
+                          <strong>Account Name:</strong> {accountName}
+                        </Alert>
+                      </Grid>
+                    )}
                   </Grid>
                 </>
               )}
             </CardContent>
-            <CardActions>
+            <CardActions sx={{ flexDirection: "column", alignItems: "stretch", gap: 1 }}>
               {subaccountStatus?.hasSubaccount ? (
-                <Alert severity="info" sx={{ width: "100%" }}>
-                  Contact support to update your subaccount details.
-                </Alert>
-              ) : (
-                <Button
-                  variant="contained"
-                  onClick={handleSetupSubaccount}
-                  disabled={
-                    subaccountLoading ||
-                    !businessName ||
-                    !bankCode ||
-                    !accountNumber
-                  }
-                >
-                  {subaccountLoading ? "Setting up..." : "Setup Subaccount"}
-                </Button>
-              )}
-            </CardActions>
-          </Card>
-        </TabPanel>
-
-        {/* Flutterwave Tab */}
-        <TabPanel value={tabValue} index={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <WalletIcon
-                  sx={{ fontSize: 40, mr: 2, color: "primary.main" }}
-                />
-                <Box>
-                  <Typography variant="h6">
-                    Flutterwave Payment Setup
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Primary payment gateway - Receive 100% of payments instantly
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Divider sx={{ my: 2 }} />
-
-              {flutterwaveStatus?.hasSubaccount ? (
-                <>
-                  <Alert
-                    severity="success"
-                    icon={<CheckCircleIcon />}
-                    sx={{ mb: 2 }}
+                <Box sx={{ width: "100%", display: "flex", gap: 2, alignItems: "center" }}>
+                  <Alert severity="info" sx={{ flex: 1 }}>
+                    Need to change your payment account? You can reset and set up a new one.
+                  </Alert>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    onClick={handleResetPaymentClick}
+                    disabled={subaccountLoading}
                   >
-                    Your Flutterwave subaccount is configured! You receive 100%
-                    of each booking payment instantly.
-                  </Alert>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Business Name"
-                        value={flutterwaveStatus.subaccount.businessName || ""}
-                        disabled
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Business Email"
-                        value={flutterwaveStatus.subaccount.businessEmail || ""}
-                        disabled
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Bank Name"
-                        value={flutterwaveStatus.subaccount.bankName || ""}
-                        disabled
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Account Number"
-                        value={flutterwaveStatus.subaccount.accountNumber || ""}
-                        disabled
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Your Share"
-                        value="100%"
-                        disabled
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Subaccount ID"
-                        value={flutterwaveStatus.subaccount.subaccountId || ""}
-                        disabled
-                      />
-                    </Grid>
-                  </Grid>
-                </>
+                    {subaccountLoading ? "Resetting..." : "Reset Setup"}
+                  </Button>
+                </Box>
               ) : (
-                <>
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    <strong>Primary Payment Gateway:</strong> Flutterwave is
-                    your default payment processor. Set up automatic payment
-                    splits: 100% goes directly to your bank account (platform is
-                    free!). No manual payouts needed.
-                  </Alert>
-
-                  <Alert severity="success" sx={{ mb: 2 }}>
-                    <strong>How it works:</strong>
-                    <ul>
-                      <li>
-                        Clients pay via Flutterwave → 100% goes to your account
-                        instantly
-                      </li>
-                      <li>
-                        Clients pay via Paystack (backup) → Funds transfer to
-                        your Flutterwave account automatically
-                      </li>
-                    </ul>
-                  </Alert>
-
-                  <Grid container spacing={2}>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Business Name"
-                        placeholder="Your business or personal name"
-                        value={flwBusinessName}
-                        onChange={(e) => setFlwBusinessName(e.target.value)}
-                        required
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Business Email"
-                        type="email"
-                        placeholder="your.email@example.com"
-                        value={flwBusinessEmail}
-                        onChange={(e) => setFlwBusinessEmail(e.target.value)}
-                        required
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth required>
-                        <InputLabel>Country</InputLabel>
-                        <Select
-                          value={flwCountry}
-                          label="Country"
-                          onChange={(e) => {
-                            const selectedCountry = e.target.value;
-                            setFlwCountry(selectedCountry);
-                            // Update currency based on country
-                            const country = flwCountries.find(
-                              (c) => c.code === selectedCountry
-                            );
-                            if (country) {
-                              setFlwCurrency(country.currency);
-                            }
-                            // Fetch banks for selected country
-                            fetchFlutterwaveBanks(selectedCountry);
-                            // Reset bank selection
-                            setFlwBankCode("");
-                          }}
-                        >
-                          {flwCountries.map((country) => (
-                            <MenuItem key={country.code} value={country.code}>
-                              {country.name} ({country.currency})
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth required>
-                        <InputLabel>Bank</InputLabel>
-                        <Select
-                          value={flwBankCode}
-                          label="Bank"
-                          onChange={(e) => setFlwBankCode(e.target.value)}
-                          disabled={!flwCountry}
-                        >
-                          {flwBanks.map((bank) => (
-                            <MenuItem key={bank.code} value={bank.code}>
-                              {bank.name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Account Number"
-                        placeholder="Bank account number"
-                        value={flwAccountNumber}
-                        onChange={(e) => setFlwAccountNumber(e.target.value)}
-                        required
-                      />
-                    </Grid>
-                  </Grid>
-                </>
-              )}
-            </CardContent>
-            <CardActions>
-              {flutterwaveStatus?.hasSubaccount ? (
-                <Alert severity="info" sx={{ width: "100%" }}>
-                  Contact support to update your Flutterwave account details.
-                </Alert>
-              ) : (
-                <Button
-                  variant="contained"
-                  onClick={handleSetupFlutterwave}
-                  disabled={
-                    flutterwaveLoading ||
-                    !flwBusinessName ||
-                    !flwBusinessEmail ||
-                    !flwBankCode ||
-                    !flwAccountNumber
-                  }
-                >
-                  {flutterwaveLoading
-                    ? "Setting up..."
-                    : "Setup Flutterwave Account"}
-                </Button>
+                <Box sx={{ width: "100%" }}>
+                  <Button
+                    variant="contained"
+                    onClick={handleSetupSubaccountClick}
+                    disabled={
+                      subaccountLoading ||
+                      !businessName ||
+                      !bankCode ||
+                      !accountNumber ||
+                      !accountName
+                    }
+                    startIcon={
+                      subaccountLoading ? <CircularProgress size={20} /> : null
+                    }
+                    fullWidth
+                  >
+                    {subaccountLoading
+                      ? "Setting up..."
+                      : "Setup Payment Account"}
+                  </Button>
+                </Box>
               )}
             </CardActions>
           </Card>
         </TabPanel>
       </Paper>
+
+      {/* Payment Confirmation Dialog */}
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: "primary.main" }}>
+          Confirm Payment Account Setup
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Are you sure you want to add this account as your payment method?
+          </DialogContentText>
+          <Box sx={{ bgcolor: "rgba(25, 193, 255, 0.08)", p: 2, borderRadius: 1, border: "1px solid", borderColor: "divider" }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              <strong>Business Name:</strong> {businessName}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              <strong>Bank:</strong> {banks.find((b: any) => b.code === bankCode)?.name || bankCode}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              <strong>Account Number:</strong> {accountNumber}
+            </Typography>
+            <Typography variant="body2">
+              <strong>Account Name:</strong> {accountName}
+            </Typography>
+          </Box>
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Once confirmed, client payments will be sent directly to this account.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button 
+            onClick={() => setConfirmDialogOpen(false)}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmSetupSubaccount}
+            variant="contained"
+            disabled={subaccountLoading}
+            startIcon={subaccountLoading ? <CircularProgress size={20} /> : null}
+          >
+            {subaccountLoading ? "Setting up..." : "Yes, Add This Account"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reset Payment Setup Confirmation Dialog */}
+      <Dialog
+        open={resetDialogOpen}
+        onClose={() => {
+          setResetDialogOpen(false);
+          setResetPassword("");
+          setResetError("");
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: "warning.main" }}>
+          Reset Payment Setup
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Are you sure you want to reset your payment setup? This will remove your current payment account and allow you to set up a new one.
+          </DialogContentText>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This action cannot be undone. You will need to set up a new payment account to receive payments.
+          </Alert>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Please enter your account password to confirm:
+          </Typography>
+          <TextField
+            fullWidth
+            type="password"
+            label="Password"
+            value={resetPassword}
+            onChange={(e) => setResetPassword(e.target.value)}
+            error={!!resetError}
+            helperText={resetError}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button 
+            onClick={() => {
+              setResetDialogOpen(false);
+              setResetPassword("");
+              setResetError("");
+            }}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmResetPayment}
+            variant="contained"
+            color="warning"
+            disabled={subaccountLoading || !resetPassword}
+            startIcon={subaccountLoading ? <CircularProgress size={20} /> : null}
+          >
+            {subaccountLoading ? "Resetting..." : "Confirm Reset"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

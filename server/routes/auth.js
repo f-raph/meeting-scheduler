@@ -11,16 +11,20 @@ const router = express.Router();
 router.post(
   "/register",
   [
-    body("email").isEmail().normalizeEmail(),
-    body("password").isLength({ min: 8 }),
-    body("firstName").trim().notEmpty(),
-    body("lastName").trim().notEmpty(),
+    body("email").isEmail().withMessage("Please enter a valid email address"),
+    body("password").isLength({ min: 8 }).withMessage("Password must be at least 8 characters"),
+    body("firstName").trim().notEmpty().withMessage("First name is required"),
+    body("lastName").trim().notEmpty().withMessage("Last name is required"),
   ],
   async (req, res) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        const errorMessages = errors.array().map(e => e.msg).join(", ");
+        return res.status(400).json({ 
+          error: errorMessages,
+          errors: errors.array() 
+        });
       }
 
       const { email, password, firstName, lastName, phone, timezone } =
@@ -54,7 +58,7 @@ router.post(
             name: "Quick Consultation",
             description: "30-minute consultation session",
             price: 50,
-            currency: "USD",
+            currency: "GHS",
             duration: 30,
             color: "#1976d2",
             isActive: true,
@@ -64,7 +68,7 @@ router.post(
             name: "Standard Meeting",
             description: "1-hour standard meeting",
             price: 100,
-            currency: "USD",
+            currency: "GHS",
             duration: 60,
             color: "#2e7d32",
             isActive: true,
@@ -74,7 +78,7 @@ router.post(
             name: "Extended Session",
             description: "90-minute extended session",
             price: 150,
-            currency: "USD",
+            currency: "GHS",
             duration: 90,
             color: "#ed6c02",
             isActive: true,
@@ -84,7 +88,7 @@ router.post(
             name: "Free Introduction",
             description: "15-minute free introductory call",
             price: 0,
-            currency: "USD",
+            currency: "GHS",
             duration: 15,
             color: "#9c27b0",
             isActive: true,
@@ -124,12 +128,20 @@ router.post(
 // Login (optionally validate tenant scope if provided)
 router.post(
   "/login",
-  [body("email").isEmail().normalizeEmail(), body("password").notEmpty()],
+  [
+    body("email").isEmail().withMessage("Please enter a valid email address"),
+    body("password").notEmpty().withMessage("Password is required"),
+  ],
   async (req, res) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        // Return user-friendly error message
+        const errorMessages = errors.array().map(e => e.msg).join(", ");
+        return res.status(400).json({ 
+          error: errorMessages,
+          errors: errors.array() 
+        });
       }
 
       const { email, password } = req.body;

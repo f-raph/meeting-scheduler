@@ -109,6 +109,120 @@ const theme = createTheme({
         },
       },
     },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": {
+            backgroundColor: brandColors.surfaceAlt,
+            color: brandColors.textPrimary,
+            "& fieldset": {
+              borderColor: brandColors.border,
+            },
+            "&:hover fieldset": {
+              borderColor: brandColors.cyan,
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: brandColors.cyan,
+            },
+            "&.Mui-disabled": {
+              backgroundColor: "rgba(15, 37, 71, 0.5)",
+              "& fieldset": {
+                borderColor: brandColors.border,
+              },
+            },
+          },
+          "& .MuiInputBase-input": {
+            color: brandColors.textPrimary,
+            "&::placeholder": {
+              color: brandColors.textSecondary,
+              opacity: 0.7,
+            },
+            "&.Mui-disabled": {
+              color: brandColors.textSecondary,
+              WebkitTextFillColor: brandColors.textSecondary,
+            },
+          },
+          "& .MuiInputLabel-root": {
+            color: brandColors.textSecondary,
+            "&.Mui-focused": {
+              color: brandColors.cyan,
+            },
+          },
+          "& .MuiFormHelperText-root": {
+            color: brandColors.textSecondary,
+          },
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        root: {
+          backgroundColor: brandColors.surfaceAlt,
+          color: brandColors.textPrimary,
+        },
+        icon: {
+          color: brandColors.textSecondary,
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          backgroundColor: brandColors.surfaceAlt,
+          color: brandColors.textPrimary,
+          "& fieldset": {
+            borderColor: brandColors.border,
+          },
+          "&:hover fieldset": {
+            borderColor: brandColors.cyan,
+          },
+          "&.Mui-focused fieldset": {
+            borderColor: brandColors.cyan,
+          },
+        },
+        input: {
+          color: brandColors.textPrimary,
+          "&::placeholder": {
+            color: brandColors.textSecondary,
+            opacity: 0.7,
+          },
+        },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          color: brandColors.textSecondary,
+          "&.Mui-focused": {
+            color: brandColors.cyan,
+          },
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          color: brandColors.textPrimary,
+          "&:hover": {
+            backgroundColor: "rgba(25, 193, 255, 0.1)",
+          },
+          "&.Mui-selected": {
+            backgroundColor: "rgba(25, 193, 255, 0.2)",
+            "&:hover": {
+              backgroundColor: "rgba(25, 193, 255, 0.25)",
+            },
+          },
+        },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: brandColors.surface,
+          border: `1px solid ${brandColors.border}`,
+        },
+      },
+    },
   },
 });
 

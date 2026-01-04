@@ -78,27 +78,25 @@ const userSchema = new mongoose.Schema(
         default: "daily",
       },
     },
-    // Paystack subaccount for instant split payments (80/20 split)
+    // Paystack subaccount for split payments
+    // When tenants make payments, funds are automatically split to admin's subaccount
     paystack: {
       subaccountCode: { type: String }, // Paystack subaccount code (e.g., ACCT_xxx)
       subaccountId: { type: String }, // Paystack subaccount ID
       businessName: { type: String },
-      settlementBank: { type: String },
-      accountNumber: { type: String },
-      percentageCharge: { type: Number, default: 80 }, // Tenant gets 80%
-    },
-    // Flutterwave subaccount for instant split payments (100% to tenant)
-    flutterwave: {
-      subaccountId: { type: String }, // Flutterwave subaccount ID
-      subaccountCode: { type: String }, // Flutterwave subaccount code
-      businessName: { type: String },
-      businessEmail: { type: String },
-      accountBank: { type: String }, // Bank code
-      accountNumber: { type: String },
+      settlementBank: { type: String }, // Bank code (e.g., "GH040100")
       bankName: { type: String }, // Bank name for display
-      country: { type: String, default: "NG" }, // ISO country code
-      currency: { type: String, default: "NGN" }, // Currency code
-      splitValue: { type: Number, default: 1 }, // 1 = 100% to tenant
+      accountNumber: { type: String },
+      accountName: { type: String }, // Verified account holder name from Paystack
+      percentageCharge: { type: Number, default: 100 }, // Percentage that goes to admin (100% default)
+      isVerified: { type: Boolean, default: false },
+      createdAt: { type: Date }, // When subaccount was created
+    },
+    // Payment setup status - tracks if admin can receive payments
+    paymentSetupStatus: {
+      type: String,
+      enum: ["PENDING", "ACTIVE", "FAILED"],
+      default: "PENDING",
     },
     // Google Calendar integration (per-admin OAuth tokens)
     googleCalendar: {
